@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 # Import shared XML manager
 from xml_manager import TradingXMLManager
 from trading_agent import TradeXMLManager
+from BinanceLiquidationClient import BinanceLiquidationClient
 
 # Import numpy for array operations
 import numpy as np
@@ -271,20 +272,35 @@ class BinanceMarketDataFetcher:
                 "time": int(datetime.now().timestamp() * 1000)  # Current timestamp in milliseconds
             }
     
-    async def get_liquidation_orders(self, symbol: str) -> Dict:
-        """Get liquidation orders data for a symbol (futures)"""
-        # Binance futures API for all force orders (liquidations)
-        # Use futures session with API key headers
+    async def get_liquidation_orders(self, symbol: str) -> Dict[str, List | int]:
+        """Get liquidation orders data for a symbol (futures)."""
+        # Ensure symbol is in correct format (e.g., BNBUSDT)
+        symbol = symbol.upper() + "USDT" if not symbol.endswith("USDT") else symbol.upper()
         endpoint = f"{self.futures_url}/fapi/v1/allForceOrders"
-        params = {"symbol": f"{symbol}USDT", "limit": 100}  # Get up to 100 recent liquidations
+        params = {
+            "symbol": symbol,
+            "limit": 100,  # Max 1000, default 50
+            # Optional: Add time range (in milliseconds)
+            # "startTime": int(time.time() * 1000) - 24*60*60*1000,  # Last 24 hours
+            # "endTime": int(time.time() * 1000),
+        }
 
         try:
             async with self.futures_session.get(endpoint, params=params) as response:
                 if response.status != 200:
-                    print(f"Error fetching liquidation orders for {symbol}: {response.status}")
+                    try:
+                        error_data = await response.json()
+                        print(f"Error fetching liquidation orders for {symbol}: {response.status}, Details: {error_data}")
+                    except Exception:
+                        error_text = await response.text()
+                        print(f"Error fetching liquidation orders for {symbol}: {response.status}, Details: {error_text}")
                     return {"rows": [], "total": 0}
 
                 data = await response.json()
+                if not isinstance(data, list):
+                    print(f"Unexpected response format for {symbol}: {data}")
+                    return {"rows": [], "total": 0}
+
                 return {"rows": data, "total": len(data)}
         except Exception as e:
             print(f"Exception fetching liquidation orders for {symbol}: {e}")
@@ -360,12 +376,13 @@ class BinanceMarketDataFetcher:
 
 class MarketCoordinator:
     """Market coordinator that prepares state of market each minute and pulls information from Binance"""
-    
+
     def __init__(self, xml_file_path: str = "trade.xml"):
         self.coins = ["BTC", "ETH", "BNB", "XRP", "DOGE"]  # As specified in the requirements
         self.xml_manager = TradingXMLManager(xml_file_path)
         self.trade_xml_manager = TradeXMLManager(xml_file_path)
         self.xml_root = self.xml_manager.root
+        self.liquidation_client = BinanceLiquidationClient(tracked_symbols=self.coins)
         
     def _initialize_xml(self):
         """Initialize is now handled by the shared XML manager"""
@@ -374,7 +391,10 @@ class MarketCoordinator:
     
     async def prepare_market_state(self) -> str:
         """Prepare the market state by fetching data from Binance and return a user prompt"""
-        
+
+        # Start background liquidation collection if not already running
+        await self.liquidation_client.start_background_collection()
+
         async with BinanceMarketDataFetcher() as fetcher:
             # Prepare the market data section
             market_state_parts = [
@@ -423,8 +443,10 @@ class MarketCoordinator:
                 kline_4h_volumes = [k[4] for k in kline_4h_data] if kline_4h_data else [] # Volume data
                 print(f"DEBUG: Final data for {symbol}: {len(kline_4h_prices)} prices, {len(kline_4h_highs)} highs, {len(kline_4h_lows)} lows, {len(kline_4h_volumes)} volumes")
 
-                # Get liquidation orders data
-                liquidation_orders = await fetcher.get_liquidation_orders(coin)
+                # Get liquidation orders data from WebSocket client
+                symbol_usdt = f"{coin}USDT"
+                top_liquidations = self.liquidation_client.get_top_liquidations(symbol_usdt)
+                liquidation_orders = {"rows": top_liquidations, "total": len(top_liquidations)}
 
                 # Get open interest
                 open_interest = await fetcher.get_open_interest(coin)
@@ -577,9 +599,6 @@ class MarketCoordinator:
                         coin_data.append(f"  {i}. Price: {order['price']:.2f}, Quantity: {order['qty']:.6f}")
                 else:
                     coin_data.append(f"  No significant buy liquidations in past 24h")
-                    # If no liquidation data, try to fetch without symbol parameter
-                    if not top_10_sell_orders and liquidation_orders.get("total", 0) == 0:
-                        print(f"Warning: No liquidation orders found for {coin} - may be API limitation")
 
                 coin_data.extend([
                     f"",
@@ -663,9 +682,8 @@ class MarketCoordinator:
         # Get the state_of_market section via the shared manager
         state_of_market = self.xml_manager.get_state_of_market_section()
         
-        # Remove existing coin data
-        for coin_elem in state_of_market.findall("coin"):
-            state_of_market.remove(coin_elem)
+        # Clear the state_of_market section completely
+        state_of_market.clear()
         
         # Add current market state for each coin with detailed data
         for coin in self.coins:
@@ -749,20 +767,31 @@ class MarketCoordinator:
     async def run_market_updates(self, trading_agent):
         """Run continuous market updates (to be called every minute)"""
         print("Starting market coordinator...")
-        
+
+        try:
+            # Start background liquidation collection
+            await self.liquidation_client.start_background_collection()
+            print("Background liquidation collection started")
+        except Exception as e:
+            print(f"Failed to start liquidation collection: {e}")
+
         while True:
             try:
                 # Prepare the market state
                 user_prompt = await self.prepare_market_state()
-                
+
                 print(f"Market state prepared at {datetime.now()}")
-                
+
                 # Pass the market data to the trading agent
                 await trading_agent.process_user_prompt(user_prompt)
-                
+
                 # Wait for 60 seconds before next update
                 await asyncio.sleep(120)
-                
+
             except Exception as e:
                 print(f"Error in market coordinator: {e}")
                 await asyncio.sleep(60)  # Wait before retrying
+
+    async def close(self):
+        """Close the liquidation client"""
+        await self.liquidation_client.stop_background_collection()

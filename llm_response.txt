@@ -1,0 +1,16 @@
+--- API Response at 2025-10-27 03:37:39.971304 ---
+{
+  "action": "buy",
+  "symbol": "XRP",
+  "quantity": 15.86,
+  "entry_price": 2.6461,
+  "leverage": 1,
+  "exit_plan": {
+    "profit_target": 2.73,
+    "stop_loss": 2.56,
+    "invalidation_condition": "Price closes below stop_loss"
+  },
+  "confidence": 0.6,
+  "reason": "XRP is oversold with RSI at 20.36, indicating potential for price reversal. Long-term EMAs are higher, supporting upward momentum."
+}
+--- End of response ---

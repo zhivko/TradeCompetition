@@ -198,4 +198,10 @@ class TradingXMLManager:
         if closed_trades is not None:
             closed_trades.clear()
 
+        # Ensure state_of_market section is preserved
+        state_of_market = self.get_state_of_market_section()
+        if state_of_market is None:
+            # Recreate state_of_market if it was accidentally cleared
+            state_of_market = ET.SubElement(self.root, "state_of_market")
+
         self._write_xml()

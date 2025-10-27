@@ -42,10 +42,20 @@ class ActiveTrade:
     entry_oid: int
     notional_usd: float
     timestamp: str = None  # ISO format timestamp when trade was created
-    
+    reasoning: List[Dict[str, str]] = None  # List of reasoning entries with timestamps
+
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now().isoformat()
+        if self.reasoning is None:
+            self.reasoning = []
+
+    def add_reasoning(self, reasoning_text: str):
+        """Add a new reasoning entry with current timestamp"""
+        self.reasoning.append({
+            "timestamp": datetime.now().isoformat(),
+            "reasoning": reasoning_text
+        })
 
 @dataclass
 class ClosedTrade:
@@ -294,9 +304,9 @@ class DeepSeekTrader:
                     # Parse the JSON response
                     recommendation = json.loads(content)
                     
-                    # Save the response to the same file
-                    with open('user_prompt.txt', 'a', encoding='utf-8') as f:
-                        f.write(f"\n\n--- API Response at {datetime.now()} ---\n")
+                    # Save the response to llm_response.txt
+                    with open('llm_response.txt', 'w', encoding='utf-8') as f:
+                        f.write(f"--- API Response at {datetime.now()} ---\n")
                         f.write(json.dumps(recommendation, indent=2))
                         f.write(f"\n--- End of response ---")
                     
@@ -409,6 +419,14 @@ class TradeXMLManager:
         ET.SubElement(trade_elem, "notional_usd").text = str(trade.notional_usd)
         ET.SubElement(trade_elem, "timestamp").text = trade.timestamp
 
+        # Add reasoning history
+        if trade.reasoning:
+            # Store the most recent reasoning entry
+            latest_reasoning = trade.reasoning[-1] if trade.reasoning else {}
+            reasoning_elem = ET.SubElement(trade_elem, "reasoning")
+            reasoning_elem.set("timestamp", latest_reasoning.get("timestamp", ""))
+            reasoning_elem.text = latest_reasoning.get("reasoning", "")
+
         self._write_xml()
 
         # Reduce cash position by the notional value of the trade
@@ -433,7 +451,7 @@ class TradeXMLManager:
 
         self._write_xml()
     
-    def close_active_trade(self, symbol: str, exit_price: float):
+    def close_active_trade(self, symbol: str, exit_price: float, reasoning: str = None):
         """Move an active trade to closed trades and update cash position"""
         agent_elem = self._get_agent_section()
         active_trades = agent_elem.find("active_trades")
@@ -442,6 +460,14 @@ class TradeXMLManager:
         for i, trade_elem in enumerate(active_trades.findall("trade")):  # Changed from active_trade to trade
             coin_elem = trade_elem.find("coin")
             if coin_elem is not None and coin_elem.text == symbol:
+                # Add reasoning if provided
+                if reasoning:
+                    reasoning_elem = trade_elem.find("reasoning")
+                    if reasoning_elem is None:
+                        reasoning_elem = ET.SubElement(trade_elem, "reasoning")
+                    reasoning_elem.set("timestamp", datetime.now().isoformat())
+                    reasoning_elem.text = reasoning
+
                 # Get the trade details
                 quantity = float(trade_elem.find("quantity").text or 0)
                 entry_price = float(trade_elem.find("entry_price").text or 0)
@@ -643,6 +669,10 @@ class TradeDecisionProcessor:
             entry_oid=entry_oid,
             notional_usd=notional_usd
         )
+
+        # Add reasoning from the recommendation
+        reasoning_text = recommendation.get("reason", "No reasoning provided")
+        trade.add_reasoning(reasoning_text)
         
         # Add the trade to XML
         self.xml_manager.add_active_trade(trade)
@@ -658,9 +688,12 @@ class TradeDecisionProcessor:
         if not current_price:
             print(f"Could not get current price for {symbol}")
             return
-            
+
+        # Get reasoning from recommendation
+        reasoning = recommendation.get("reason", "API recommended sell")
+
         # Close the active trade in the XML
-        self.xml_manager.close_active_trade(symbol, current_price)
+        self.xml_manager.close_active_trade(symbol, current_price, reasoning)
         print(f"Sell trade executed for {symbol}: closed at price={current_price}")
 
         # Signal trade closed event
@@ -745,7 +778,15 @@ class TradingAgent:
                 print(f"Closing {symbol} trade - stop loss reached at {current_price}")
 
             if should_close:
-                self.xml_manager.close_active_trade(symbol, exit_price)
+                # Determine reasoning based on close condition
+                if takeprofit > 0 and current_price >= takeprofit:
+                    reasoning = f"Take profit triggered at {current_price}"
+                elif stop_loss > 0 and current_price <= stop_loss:
+                    reasoning = f"Stop loss triggered at {current_price}"
+                else:
+                    reasoning = "Trade closed due to exit condition"
+
+                self.xml_manager.close_active_trade(symbol, exit_price, reasoning)
                 # Signal trade closed event for stop loss/take profit closures
                 if self.on_trade_closed:
                     self.on_trade_closed(symbol, exit_price)

@@ -9,14 +9,29 @@ async def main():
     """Main function to run the trading agent with market coordinator"""
     print("Initializing DeepSeek Trading Agent and Market Coordinator...")
 
-    # Check for /fresh parameter
-    fresh_start = "/fresh" in sys.argv
+    # Check for --fresh parameter
+    fresh_start = "--fresh" in sys.argv
 
     if fresh_start:
         print("Fresh start requested. Clearing all active and closed trades from XML...")
         xml_manager = TradingXMLManager()
         xml_manager.clear_all_trades()
         print("All trades cleared successfully!")
+
+        # Clear state_of_market section for fresh start
+        state_of_market = xml_manager.get_state_of_market_section()
+        if state_of_market is not None:
+            state_of_market.clear()
+            xml_manager._write_xml()
+        print("State of market cleared for fresh start!")
+
+        # Reset account summary to initial values
+        xml_manager.update_account_summary(
+            available_cash=10000.0,
+            current_account_value=10000.0,
+            sharpe_ratio=0.0
+        )
+        print("Account summary reset to initial values!")
 
     # Check if API key exists
     if not os.getenv("DEEPSEEK_API_KEY"):
