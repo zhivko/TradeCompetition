@@ -1,0 +1,4 @@
+aiohttp
+python-dotenv
+numpy
+ta-lib
