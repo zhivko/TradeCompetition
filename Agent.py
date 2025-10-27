@@ -597,10 +597,10 @@ class TradeDecisionProcessor:
         
     def process_trade_recommendation(self, recommendation: Dict, current_prices: Dict[str, float], available_cash: float, confidence: float):
         """Process the trade recommendation from the API and execute trades if needed"""
-        print(f"DEBUG: Processing recommendation: {recommendation}")
-        print(f"DEBUG: Available cash: {available_cash}")
-        print(f"DEBUG: Current prices: {current_prices}")
-        print(f"DEBUG: Confidence: {confidence}")
+        print(f"DEBUG [{self.kind}]: Processing recommendation: {recommendation}")
+        print(f"DEBUG [{self.kind}]: Available cash: {available_cash}")
+        print(f"DEBUG [{self.kind}]: Current prices: {current_prices}")
+        print(f"DEBUG [{self.kind}]: Confidence: {confidence}")
 
         # Adjust quantity based on confidence and enforce minimum threshold
         if confidence < MIN_CONFIDENCE_THRESHOLD:
@@ -612,9 +612,9 @@ class TradeDecisionProcessor:
                 original_quantity = recommendation.get("quantity", 0.0)
                 adjusted_quantity = original_quantity * confidence
                 recommendation["quantity"] = adjusted_quantity
-                print(f"DEBUG: Adjusted quantity from {original_quantity} to {adjusted_quantity} based on confidence {confidence}")
+                print(f"DEBUG [{self.kind}]: Adjusted quantity from {original_quantity} to {adjusted_quantity} based on confidence {confidence}")
 
-        print(f"DEBUG: Action determined: {action}")
+        print(f"DEBUG [{self.kind}]: Action determined: {action}")
 
         if action == "hold":
             print("No trade action recommended - holding position")
@@ -622,7 +622,7 @@ class TradeDecisionProcessor:
 
         elif action == "buy":
             symbol = recommendation.get("symbol")
-            print(f"DEBUG: Buy action - symbol: {symbol}")
+            print(f"DEBUG [{self.kind}]: Buy action - symbol: {symbol}")
             if not symbol:
                 print("Buy action specified but no symbol provided")
                 return
@@ -633,10 +633,10 @@ class TradeDecisionProcessor:
             entry_price = recommendation.get("entry_price", current_prices.get(symbol.lower(), 0))
             leverage = recommendation.get("leverage", 1)
             new_notional = entry_price * quantity * leverage
-            print(f"DEBUG: Buy - current_exposure: {current_exposure}, quantity: {quantity}, entry_price: {entry_price}, leverage: {leverage}, new_notional: {new_notional}")
+            print(f"DEBUG [{self.kind}]: Buy - current_exposure: {current_exposure}, quantity: {quantity}, entry_price: {entry_price}, leverage: {leverage}, new_notional: {new_notional}")
 
             total_exposure_after = current_exposure + (new_notional / available_cash) if available_cash > 0 else float('inf')
-            print(f"DEBUG: Buy - total_exposure_after: {total_exposure_after}, MAX_EXPOSURE_PERCENT: {MAX_EXPOSURE_PERCENT}")
+            print(f"DEBUG [{self.kind}]: Buy - total_exposure_after: {total_exposure_after}, MAX_EXPOSURE_PERCENT: {MAX_EXPOSURE_PERCENT}")
 
             if total_exposure_after > MAX_EXPOSURE_PERCENT:
                 print(f"Trade rejected: would exceed {MAX_EXPOSURE_PERCENT*100}% exposure limit. " +
@@ -650,7 +650,7 @@ class TradeDecisionProcessor:
 
         elif action == "sell":
             symbol = recommendation.get("symbol")
-            print(f"DEBUG: Sell action - symbol: {symbol}")
+            print(f"DEBUG [{self.kind}]: Sell action - symbol: {symbol}")
             if not symbol:
                 print("Sell action specified but no symbol provided")
                 return
@@ -658,7 +658,7 @@ class TradeDecisionProcessor:
             # Check if we have an active position for this symbol
             active_trades = self.xml_manager.get_active_trades()
             has_position = any(trade.get("symbol") == symbol for trade in active_trades)
-            print(f"DEBUG: Sell - has_position: {has_position}, active_trades count: {len(active_trades)}")
+            print(f"DEBUG [{self.kind}]: Sell - has_position: {has_position}, active_trades count: {len(active_trades)}")
 
             if has_position:
                 self._execute_sell_trade(symbol, recommendation, current_prices)
