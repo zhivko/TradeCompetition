@@ -1,5 +1,5 @@
 import asyncio
-from trading_agent import TradingAgent, MarketDataManager
+from Agent import TradingAgent, MarketDataManager
 import json
 
 # Sample user prompt data based on the specification
@@ -227,8 +227,10 @@ Sharpe Ratio: 0.326
 async def test_agent():
     print("Testing the trading agent with sample data...")
     
-    # Initialize the agent
-    agent = TradingAgent()
+    # Initialize the agent with a mock trader (since we don't have API keys)
+    from AgentDeepSeek import AgentDeepSeek
+    trader = AgentDeepSeek()
+    agent = TradingAgent(trader)
     
     # Test market data parsing
     print("\n1. Testing market data parsing...")
@@ -272,7 +274,7 @@ async def test_agent():
         "doge": 0.202375
     }
     
-    trade_processor.process_trade_recommendation(mock_recommendation, current_prices)
+    trade_processor.process_trade_recommendation(mock_recommendation, current_prices, 10000.0, 0.8)
     
     # Check if the trade was added to XML
     active_trades = xml_manager.get_active_trades()

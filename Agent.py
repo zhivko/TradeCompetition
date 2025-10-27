@@ -7,13 +7,17 @@ import json
 import asyncio
 import aiohttp
 from dotenv import load_dotenv
+from abc import ABC, abstractmethod
 
 # Import shared XML manager
-from xml_manager import TradingXMLManager
+from XmlManager import TradingXMLManager
 
 # Load environment variables
 load_dotenv()
 
+# Money management constants
+MAX_EXPOSURE_PERCENT = 0.1  # 10% of cash position exposed as active trades
+MIN_CONFIDENCE_THRESHOLD = 0.7  # Minimum confidence required for trading actions
 # Money management constants
 MAX_EXPOSURE_PERCENT = 0.1  # 10% of cash position exposed as active trades
 
@@ -249,94 +253,27 @@ class MarketDataManager:
         return orders
 
 
-class DeepSeekTrader:
-    """Class to handle trading decisions using DeepSeek API"""
-    
-    def __init__(self):
-        self.api_key = os.getenv("DEEPSEEK_API_KEY")
-        self.api_url = "https://api.deepseek.com/v1/chat/completions"
-        self.model = "deepseek-reasoner"  # Using the reasoner version as requested
-        
-    async def get_trade_recommendation(self, market_data: Dict, account_info: Dict, active_trades: List[Dict]) -> Dict:
-        """Get trade recommendation from DeepSeek API based on market data"""
-        if not self.api_key:
-            raise ValueError("DeepSeek API key not found in environment variables")
+class Agent(ABC):
+    """Abstract base class for trading decision makers"""
 
-        # Construct the prompt for the API
-        prompt = self._construct_prompt(market_data, account_info, active_trades)
-        
-        # Save the full prompt to user_prompt.txt
-        with open('user_prompt.txt', 'w', encoding='utf-8') as f:
-            f.write(f"--- Prompt sent to DeepSeek API at {datetime.now()} ---\n\n")
-            f.write(prompt)
-            f.write(f"\n\n--- End of prompt ---")
-        
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
-        
-        payload = {
-            "model": self.model,
-            "messages": [
-                {
-                    "role": "system", 
-                    "content": "You are an expert cryptocurrency trading agent. Analyze market data and provide trading recommendations. Only respond with valid JSON containing your trade decision."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.2,  # Lower temperature for more consistent decisions
-            "response_format": {"type": "json_object"}
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.post(self.api_url, headers=headers, json=payload) as response:
-                    if response.status != 200:
-                        raise Exception(f"API request failed with status {response.status}")
-                    
-                    result = await response.json()
-                    content = result['choices'][0]['message']['content']
-                    
-                    # Parse the JSON response
-                    recommendation = json.loads(content)
-                    
-                    # Save the response to llm_response.txt
-                    with open('llm_response.txt', 'w', encoding='utf-8') as f:
-                        f.write(f"--- API Response at {datetime.now()} ---\n")
-                        f.write(json.dumps(recommendation, indent=2))
-                        f.write(f"\n--- End of response ---")
-                    
-                    return recommendation
-            except Exception as e:
-                print(f"Error calling DeepSeek API: {e}")
-                # Return a default recommendation in case of API failure
-                return {
-                    "action": "hold",  # Default action if API fails
-                    "reason": "API error - holding position"
-                }
-    
+    def __init__(self):
+        pass
+
     def _construct_prompt(self, market_data: Dict, account_info: Dict, active_trades: List[Dict]) -> str:
-        """Construct the prompt to send to the DeepSeek API"""
+        """Construct the prompt to send to the LLM"""
         prompt = f"""
-Analyze the following market data and provide a trade recommendation in JSON format:
-{{
-  "action": "<buy|sell|hold>",
-  "symbol": "<coin symbol if action is buy/sell>",
-  "quantity": <quantity to trade>,
-  "entry_price": <price at which to enter>,
-  "leverage": <leverage to use>,
-  "exit_plan": {{
-    "profit_target": <target exit price>,
-    "stop_loss": <stop loss price>,
-    "invalidation_condition": "<condition when to close trade>"
-  }},
-  "confidence": <confidence level 0-1>,
-  "reason": "<brief explanation for the trade>"
-}}
+Analyze the data above. Be conservative: only recommend BUY or SELL if the signal is strong and aligns with multiple indicators (e.g., RSI not extreme, MACD crossover confirmed). Otherwise, HOLD to avoid overtrading.
+
+Risk Rules (MUST FOLLOW):
+- Max 5 active/open trades at any time (check recent trades summary).
+- Each trade risks MAX 2% of total capital (calculate based on stop-loss distance and leverage).
+- Quantity formula: quantity = (total_capital * 0.02) / (stop_loss_distance * leverage * entry_price)
+- Suggest stop-loss: 2-5% away from entry, based on volatility (e.g., ATR).
+- If rules violated, output HOLD with reason.
+
+Output ONLY valid JSON: {{"action": "buy/sell/hold", "symbol": "<coin symbol if action is buy/sell>", "quantity": float, "stop_loss": float (price), "confidence": float 0-1, "reason": "brief explanation including risk calc"}}
+
+Example: With $10k capital, 3% stop distance, 5x leverage: quantity = (10000 * 0.02) / (0.03 * 5) = ~1333 units worth.
 
 Market Data:
 {json.dumps(market_data, indent=2)}
@@ -347,13 +284,119 @@ Account Information:
 Active Trades:
 {json.dumps(active_trades, indent=2)}
 
-Important: Do not exceed {MAX_EXPOSURE_PERCENT*100}% exposure of available cash in active trades. Current active trades are shown above.
-
 Current time: {datetime.now().isoformat()}
 
 Only respond with valid JSON. Do not include any other text or explanation.
 """
         return prompt
+
+    def _enforce_risk_rules(self, recommendation: Dict, market_data: Dict, portfolio: Dict) -> Dict:
+        """Enforce risk rules after parsing the LLM response"""
+        # Enforce max trades
+        active_trades = portfolio.get('trades', [])
+        active_count = len([t for t in active_trades if not t.get('closed', False)])
+        if recommendation.get('action') != 'hold' and active_count >= 5:
+            recommendation['action'] = 'hold'
+            recommendation['reason'] += " (Overridden: Max 5 active trades reached)"
+
+        # Enforce risk per trade
+        if recommendation.get('action') != 'hold':
+            total_capital = portfolio.get('total_value', 0)
+            symbol = recommendation.get('symbol', '')
+            entry_price = recommendation.get('entry_price', market_data.get(symbol.lower(), {}).get('current_price', 0))
+            stop_loss = recommendation.get('stop_loss', 0)
+            leverage = portfolio.get('leverage', 1.0)
+
+            if entry_price > 0 and stop_loss > 0:
+                stop_distance = abs(stop_loss - entry_price) / entry_price
+                quantity = recommendation.get('quantity', 0)
+                risk_percent = (quantity * entry_price * leverage * stop_distance) / total_capital
+
+                if risk_percent > 0.02:
+                    recommendation['action'] = 'hold'
+                    recommendation['reason'] += f" (Overridden: Risk {risk_percent:.2%} > 2% max)"
+
+        return recommendation
+
+    def _save_prompt_and_response(self, prompt: str, recommendation: Dict, api_type: str = "API"):
+        """Save the prompt and response to files"""
+        # Save the full prompt to user_prompt.txt
+        with open('user_prompt.txt', 'w', encoding='utf-8') as f:
+            f.write(f"--- Prompt sent to {api_type} at {datetime.now()} ---\n\n")
+            f.write(prompt)
+            f.write(f"\n\n--- End of prompt ---")
+
+        # Save the response to llm_response.txt
+        with open('llm_response.txt', 'w', encoding='utf-8') as f:
+            f.write(f"--- {api_type} Response at {datetime.now()} ---\n")
+            f.write(json.dumps(recommendation, indent=2))
+            f.write(f"\n--- End of response ---")
+
+    async def get_trade_recommendation(self, market_data: Dict, account_info: Dict, active_trades: List[Dict], portfolio: Dict = None) -> Dict:
+        """Get trade recommendation based on market data using template method pattern"""
+        # Construct the prompt for the API
+        prompt = self._construct_prompt(market_data, account_info, active_trades)
+
+        # Call the API (implemented by subclasses)
+        content = await self._call_api(prompt)
+
+        # Parse the JSON response
+        recommendation = json.loads(content)
+
+        # Save the prompt and response
+        self._save_prompt_and_response(prompt, recommendation, self.__class__.__name__)
+
+        # Enforce risk rules post-parsing
+        if portfolio:
+            recommendation = self._enforce_risk_rules(recommendation, market_data, portfolio)
+
+        return recommendation
+
+    async def _call_api(self, prompt: str) -> str:
+        """Default implementation for calling API with common logic"""
+        headers = self._get_headers()
+        payload = self._get_payload(prompt)
+
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.post(self.api_url, headers=headers, json=payload) as response:
+                    if response.status != 200:
+                        raise Exception(f"API request failed with status {response.status}")
+
+                    result = await response.json()
+                    return result['choices'][0]['message']['content']
+            except Exception as e:
+                print(f"Error calling API: {e}")
+                # Return a default JSON string in case of API failure
+                return json.dumps({
+                    "action": "hold",  # Default action if API fails
+                    "reason": "API error - holding position"
+                })
+
+    def _get_payload(self, prompt: str) -> Dict:
+        """Default payload implementation - can be overridden if needed"""
+        return {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are an expert cryptocurrency trading agent. Analyze market data and provide trading recommendations. Only respond with valid JSON containing your trade decision."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.2,  # Lower temperature for more consistent decisions
+            "response_format": {"type": "json_object"}
+        }
+
+    @abstractmethod
+    def _get_headers(self) -> Dict[str, str]:
+        """Get headers for the API request"""
+        pass
+
+
 
 
 class TradeXMLManager:
@@ -371,9 +414,13 @@ class TradeXMLManager:
         """Write the current XML structure to file via the shared manager"""
         self.xml_manager._write_xml()
 
-    def add_latest_response(self, response: Dict):
+    def add_latest_response(self, response: Dict, kind: str = None):
         """Add the latest agent response to the XML"""
         agent_elem = self._get_agent_section()
+
+        # Set kind attribute if provided
+        if kind:
+            agent_elem.set("kind", kind)
 
         # Remove existing latest_response if it exists
         existing_response = agent_elem.find("latest_response")
@@ -506,7 +553,11 @@ class TradeXMLManager:
         """Get all active trades as a list of dictionaries"""
         active_trades = []
         agent_elem = self._get_agent_section()
+        if agent_elem is None:
+            return active_trades
         active_trades_elem = agent_elem.find("active_trades")
+        if active_trades_elem is None:
+            return active_trades
 
         for trade_elem in active_trades_elem.findall("trade"):  # Changed from active_trade to trade
             trade_dict = {}
@@ -551,9 +602,9 @@ class TradeDecisionProcessor:
         print(f"DEBUG: Current prices: {current_prices}")
         print(f"DEBUG: Confidence: {confidence}")
 
-        # Adjust quantity based on confidence
-        if confidence < 0.5:
-            print(f"Confidence {confidence} < 0.5, not trading")
+        # Adjust quantity based on confidence and enforce minimum threshold
+        if confidence < MIN_CONFIDENCE_THRESHOLD:
+            print(f"Confidence {confidence} < {MIN_CONFIDENCE_THRESHOLD}, not trading")
             action = "hold"
         else:
             action = recommendation.get("action", "hold")
@@ -724,9 +775,11 @@ class TradeDecisionProcessor:
 class TradingAgent:
     """Main trading agent that coordinates all components"""
 
-    def __init__(self):
+    def __init__(self, trader: Agent):
         self.market_data_manager = MarketDataManager()
-        self.deepseek_trader = DeepSeekTrader()
+        self.trader = trader
+        # Determine kind based on trader type
+        self.kind = self._determine_kind(trader)
         self.xml_manager = TradeXMLManager()
         self.trade_processor = TradeDecisionProcessor(self.xml_manager)
 
@@ -737,6 +790,14 @@ class TradingAgent:
         # Trade event callbacks
         self.on_trade_opened = None
         self.on_trade_closed = None
+
+        # Signal cooldown to prevent overtrading
+        self.signal_cooldown = 300  # 5 minutes in seconds
+        self.last_signal_time = 0
+
+    def _determine_kind(self, trader: Agent) -> str:
+        """Determine the kind of agent based on the trader type"""
+        return trader.__class__.__name__
 
     def _update_active_trades(self, current_prices: Dict[str, float]):
         """Update all active trades with current prices and calculate PnL"""
@@ -790,10 +851,17 @@ class TradingAgent:
                 # Signal trade closed event for stop loss/take profit closures
                 if self.on_trade_closed:
                     self.on_trade_closed(symbol, exit_price)
-    
+
     async def process_user_prompt(self, user_prompt: str):
         """Process a user prompt and execute trading decisions"""
-        print(f"Processing user prompt at {datetime.now()}")
+        print(f"Processing user prompt for {self.kind} at {datetime.now()}")
+
+        # Check signal cooldown to prevent overtrading
+        import time
+        current_time = time.time()
+        if current_time - self.last_signal_time < self.signal_cooldown:
+            print(f"Signal cooldown active. Last signal: {self.last_signal_time}, current: {current_time}, cooldown: {self.signal_cooldown}")
+            return  # Skip processing if cooldown is active
 
         # Parse the market data from the user prompt
         market_data = self.market_data_manager.parse_market_data(user_prompt)
@@ -818,26 +886,34 @@ class TradingAgent:
         # Get active trades for the prompt
         active_trades = self.xml_manager.get_active_trades()
 
-        # Get trade recommendation from DeepSeek API
-        recommendation = await self.deepseek_trader.get_trade_recommendation(market_data, account_info, active_trades)
+        # Get trade recommendation from the configured trader
+        portfolio = {
+            'total_value': account_info.get('current_account_value', 0),
+            'trades': active_trades,
+            'leverage': 5.0  # Default leverage, can be made configurable
+        }
+        recommendation = await self.trader.get_trade_recommendation(market_data, account_info, active_trades, portfolio)
 
         # Save the latest agent response to XML
-        self.xml_manager.add_latest_response(recommendation)
+        self.xml_manager.add_latest_response(recommendation, self.kind)
 
         # Process the trade recommendation (may open new trades if exposure allows)
         confidence = recommendation.get("confidence", 0.0)
         self.trade_processor.process_trade_recommendation(recommendation, normalized_current_prices, account_info.get("available_cash", 0), confidence)
 
+        # Update last signal time only if we actually processed a signal (not on cooldown)
+        self.last_signal_time = current_time
+
         print("Completed processing user prompt")
-    
+
     async def run_trading_session(self, prompts_generator):
         """Run a complete trading session with multiple prompts"""
         print("Starting trading session...")
-        
+
         async for prompt in prompts_generator:
             await self.process_user_prompt(prompt)
-            
+
             # Add a small delay between processing prompts
             await asyncio.sleep(0.1)
-        
+
         print("Trading session completed")

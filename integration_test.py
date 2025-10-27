@@ -1,6 +1,6 @@
 import asyncio
-from market_coordinator import MarketCoordinator
-from trading_agent import TradingAgent
+from MarketCoordinator import MarketCoordinator
+from Agent import TradingAgent
 
 async def integration_test():
     print("Starting integration test...")

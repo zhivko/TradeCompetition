@@ -1,8 +1,8 @@
 import asyncio
 import signal
 import sys
-from trading_agent import TradingAgent
-from market_coordinator import MarketCoordinator
+from Agent import TradingAgent
+from MarketCoordinator import MarketCoordinator
 
 # Global variable to control the loop
 running = True

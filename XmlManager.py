@@ -17,7 +17,7 @@ class TradingXMLManager:
             # Try to load existing XML
             tree = ET.parse(self.xml_file_path)
             self.root = tree.getroot()
-            
+
             # Ensure the structure is correct (trading as root)
             if self.root.tag == 'agent':
                 # Convert from old structure to new structure
@@ -25,26 +25,29 @@ class TradingXMLManager:
         except FileNotFoundError:
             # Create new XML structure with trading as root
             self.root = ET.Element("trading")
-            
+
             # Add state_of_market section (for market coordinator)
             state_of_market = ET.SubElement(self.root, "state_of_market")
-            
-            # Add agent section
-            agent_elem = ET.SubElement(self.root, "agent")
-            
+
+            # Add agents section
+            agents_elem = ET.SubElement(self.root, "agents")
+
+            # Add agent section under agents
+            agent_elem = ET.SubElement(agents_elem, "agent")
+
             # Add active trades section under agent
             active_trades = ET.SubElement(agent_elem, "active_trades")
-            
+
             # Add closed trades section under agent
             closed_trades = ET.SubElement(agent_elem, "closed_trades")
-            
+
             # Add summary section under agent
             summary = ET.SubElement(agent_elem, "summary")
             ET.SubElement(summary, "total_return").text = "0.0"
             ET.SubElement(summary, "available_cash").text = "10000.0"  # Starting amount
             ET.SubElement(summary, "current_account_value").text = "10000.0"
             ET.SubElement(summary, "sharpe_ratio").text = "0.0"
-            
+
             # Write the initial structure to file
             self._write_xml()
     
@@ -52,17 +55,20 @@ class TradingXMLManager:
         """Convert old 'agent' root structure to new 'trading' root structure"""
         old_root = self.root
         new_root = ET.Element("trading")
-        
+
         # Create new state_of_market section
         state_of_market = ET.SubElement(new_root, "state_of_market")
-        
+
+        # Create agents section
+        agents_elem = ET.SubElement(new_root, "agents")
+
         # Move everything else under new agent section
-        agent_elem = ET.SubElement(new_root, "agent")
-        
+        agent_elem = ET.SubElement(agents_elem, "agent")
+
         # Copy all elements from old root to new agent
         for child in old_root:
             agent_elem.append(child)
-        
+
         self.root = new_root
     
     def _write_xml(self):
@@ -77,11 +83,14 @@ class TradingXMLManager:
             # Old structure, agent is root
             return self.root
         elif self.root.tag == "trading":
-            # New structure, agent is child of trading
-            agent_elem = self.root.find("agent")
+            # New structure, agent is child of agents
+            agents_elem = self.root.find("agents")
+            if agents_elem is None:
+                agents_elem = ET.SubElement(self.root, "agents")
+            agent_elem = agents_elem.find("agent")
             if agent_elem is None:
                 # Create agent element if it doesn't exist
-                agent_elem = ET.SubElement(self.root, "agent")
+                agent_elem = ET.SubElement(agents_elem, "agent")
             return agent_elem
         else:
             # Unknown structure, return root
@@ -203,5 +212,10 @@ class TradingXMLManager:
         if state_of_market is None:
             # Recreate state_of_market if it was accidentally cleared
             state_of_market = ET.SubElement(self.root, "state_of_market")
+
+        # Ensure agents section is preserved
+        agents_elem = self.root.find("agents")
+        if agents_elem is None:
+            agents_elem = ET.SubElement(self.root, "agents")
 
         self._write_xml()

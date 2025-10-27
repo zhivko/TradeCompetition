@@ -8,8 +8,8 @@ import os
 from dotenv import load_dotenv
 
 # Import shared XML manager
-from xml_manager import TradingXMLManager
-from trading_agent import TradeXMLManager
+from XmlManager import TradingXMLManager
+from Agent import TradeXMLManager
 from BinanceLiquidationClient import BinanceLiquidationClient
 
 # Import numpy for array operations
@@ -764,7 +764,7 @@ class MarketCoordinator:
         # Write to the XML file via shared manager
         self.xml_manager._write_xml()
     
-    async def run_market_updates(self, trading_agent):
+    async def run_market_updates(self, trading_agents):
         """Run continuous market updates (to be called every minute)"""
         print("Starting market coordinator...")
 
@@ -782,8 +782,9 @@ class MarketCoordinator:
 
                 print(f"Market state prepared at {datetime.now()}")
 
-                # Pass the market data to the trading agent
-                await trading_agent.process_user_prompt(user_prompt)
+                # Pass the market data to all trading agents
+                for agent in trading_agents:
+                    await agent.process_user_prompt(user_prompt)
 
                 # Wait for 60 seconds before next update
                 await asyncio.sleep(120)

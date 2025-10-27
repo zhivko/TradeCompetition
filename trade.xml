@@ -2,106 +2,30 @@
 <trading>
   <state_of_market />
   <agent>
-    <active_trades>
-      <trade>
-        <coin>BTC</coin>
-        <price>114873.51</price>
-        <quantity>0.0065025000000000005</quantity>
-        <entry_price>115370.13</entry_price>
-        <leverage>1</leverage>
-        <takeprofit>117627.79</takeprofit>
-        <stop_loss>113112.47</stop_loss>
-        <invalidation_condition>Price closes below stop_loss or RSI drops below 50</invalidation_condition>
-        <pnl>-3.2292715500000644</pnl>
-        <liquidation_price>0.0</liquidation_price>
-        <unrealized_pnl>0.0</unrealized_pnl>
-        <confidence>0.75</confidence>
-        <risk_usd>14.680434150000023</risk_usd>
-        <sl_oid>131118428969</sl_oid>
-        <tp_oid>880251432546</tp_oid>
-        <wait_for_fill>false</wait_for_fill>
-        <entry_oid>550911751149</entry_oid>
-        <notional_usd>750.194270325</notional_usd>
-        <timestamp>2025-10-27T03:16:20.971135</timestamp>
-        <reasoning timestamp="2025-10-27T03:16:20.971135">Bullish momentum with MACD positive and RSI not overbought, indicating potential upside without extreme overbought conditions.</reasoning>
-      </trade>
-      <trade>
-        <coin>BNB</coin>
-        <price>1156.09</price>
-        <quantity>0.1505</quantity>
-        <entry_price>1159.59</entry_price>
-        <leverage>1</leverage>
-        <takeprofit>1195.94</takeprofit>
-        <stop_loss>1141.41</stop_loss>
-        <invalidation_condition>Price closes below stop_loss or RSI drops below 50</invalidation_condition>
-        <pnl>-0.5267499999999999</pnl>
-        <liquidation_price>0.0</liquidation_price>
-        <unrealized_pnl>0.0</unrealized_pnl>
-        <confidence>0.7</confidence>
-        <risk_usd>2.7360899999999755</risk_usd>
-        <sl_oid>950508718710</sl_oid>
-        <tp_oid>549835570049</tp_oid>
-        <wait_for_fill>false</wait_for_fill>
-        <entry_oid>610023404270</entry_oid>
-        <notional_usd>174.518295</notional_usd>
-        <timestamp>2025-10-27T03:27:22.098811</timestamp>
-        <reasoning timestamp="2025-10-27T03:27:22.098811">BNB shows bullish momentum with price above EMA20, positive MACD, and neutral RSI indicating potential upside without overbought conditions.</reasoning>
-      </trade>
-      <trade>
-        <coin>DOGE</coin>
-        <price>0.20774</price>
-        <quantity>160.0</quantity>
-        <entry_price>0.2082</entry_price>
-        <leverage>1</leverage>
-        <takeprofit>0.22902</takeprofit>
-        <stop_loss>0.201104</stop_loss>
-        <invalidation_condition>Price closes below stop_loss</invalidation_condition>
-        <pnl>-0.07359999999999811</pnl>
-        <liquidation_price>0.0</liquidation_price>
-        <unrealized_pnl>0.0</unrealized_pnl>
-        <confidence>0.8</confidence>
-        <risk_usd>1.1353599999999986</risk_usd>
-        <sl_oid>988840617933</sl_oid>
-        <tp_oid>736679692612</tp_oid>
-        <wait_for_fill>false</wait_for_fill>
-        <entry_oid>128659674433</entry_oid>
-        <notional_usd>33.312</notional_usd>
-        <timestamp>2025-10-27T03:32:01.158067</timestamp>
-        <reasoning timestamp="2025-10-27T03:32:01.158067">DOGE is extremely oversold with RSI at 18.56, indicating a high probability of price reversal. Positive MACD supports upward momentum, and no active trade exists for this symbol.</reasoning>
-      </trade>
-      <trade>
-        <coin>XRP</coin>
-        <price>2.6461</price>
-        <quantity>9.516</quantity>
-        <entry_price>2.6461</entry_price>
-        <leverage>1</leverage>
-        <takeprofit>2.73</takeprofit>
-        <stop_loss>2.56</stop_loss>
-        <invalidation_condition>Price closes below stop_loss</invalidation_condition>
-        <pnl>0</pnl>
-        <liquidation_price>0.0</liquidation_price>
-        <unrealized_pnl>0.0</unrealized_pnl>
-        <confidence>0.6</confidence>
-        <risk_usd>0.8193276000000006</risk_usd>
-        <sl_oid>307708392628</sl_oid>
-        <tp_oid>589888570400</tp_oid>
-        <wait_for_fill>false</wait_for_fill>
-        <entry_oid>409816022134</entry_oid>
-        <notional_usd>25.1802876</notional_usd>
-        <timestamp>2025-10-27T03:37:39.973309</timestamp>
-        <reasoning timestamp="2025-10-27T03:37:39.973309">XRP is oversold with RSI at 20.36, indicating potential for price reversal. Long-term EMAs are higher, supporting upward momentum.</reasoning>
-      </trade>
-    </active_trades>
+    <active_trades />
     <closed_trades />
     <summary>
       <total_return>0.0</total_return>
-      <available_cash>9016.795147075</available_cash>
+      <available_cash>10000.0</available_cash>
       <current_account_value>10000.0</current_account_value>
       <sharpe_ratio>0.0</sharpe_ratio>
     </summary>
     <latest_response>
-      <response>{"action": "buy", "symbol": "XRP", "quantity": 15.86, "entry_price": 2.6461, "leverage": 1, "exit_plan": {"profit_target": 2.73, "stop_loss": 2.56, "invalidation_condition": "Price closes below stop_loss"}, "confidence": 0.6, "reason": "XRP is oversold with RSI at 20.36, indicating potential for price reversal. Long-term EMAs are higher, supporting upward momentum."}</response>
-      <timestamp>2025-10-27T03:37:39.972307</timestamp>
+      <response>{"action": "hold", "symbol": null, "quantity": 0, "entry_price": 0, "leverage": 1, "exit_plan": {"profit_target": 0, "stop_loss": 0, "invalidation_condition": ""}, "confidence": 0.8, "reason": "Current active trades are at the 10% exposure limit of available cash, and no strong buy or sell signals outweigh the risk of exceeding this constraint."}</response>
+      <timestamp>2025-10-27T09:01:27.252088</timestamp>
     </latest_response>
   </agent>
+  <agents>
+    <agent kind="AgentDeepSeek">
+      <latest_response>
+        <response>{"test": "response"}</response>
+        <timestamp>2025-10-27T10:00:08.698723</timestamp>
+      </latest_response>
+      <summary>
+        <available_cash>10000.0</available_cash>
+        <current_account_value>10000.0</current_account_value>
+        <sharpe_ratio>0.0</sharpe_ratio>
+      </summary>
+    </agent>
+  </agents>
 </trading>

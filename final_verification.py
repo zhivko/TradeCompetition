@@ -1,6 +1,6 @@
 import asyncio
-from market_coordinator import MarketCoordinator
-from trading_agent import TradingAgent
+from MarketCoordinator import MarketCoordinator
+from Agent import TradingAgent
 
 async def test_complete_system():
     coordinator = MarketCoordinator()

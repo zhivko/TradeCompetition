@@ -1,5 +1,5 @@
 import asyncio
-from trading_agent import TradingAgent, ActiveTrade, ExitPlan
+from Agent import TradingAgent, ActiveTrade, ExitPlan
 import random
 
 async def test_trade_creation():

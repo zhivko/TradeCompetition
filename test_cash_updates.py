@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Test script for cash position updates"""
 
-from xml_manager import TradingXMLManager
-from trading_agent import ActiveTrade, ExitPlan
+from XmlManager import TradingXMLManager
+from Agent import ActiveTrade, ExitPlan
 
 def test_cash_position_updates():
     """Test cash position updates when opening and closing trades"""

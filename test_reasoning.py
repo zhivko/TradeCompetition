@@ -1,4 +1,4 @@
-from trading_agent import TradeXMLManager, ActiveTrade, ExitPlan
+from Agent import TradeXMLManager, ActiveTrade, ExitPlan
 import os
 import xml.etree.ElementTree as ET
 

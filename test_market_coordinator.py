@@ -1,5 +1,5 @@
 import asyncio
-from market_coordinator import MarketCoordinator
+from MarketCoordinator import MarketCoordinator
 
 async def test():
     coordinator = MarketCoordinator()
