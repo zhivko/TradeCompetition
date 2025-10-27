@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Dict, List
 import os
+import traceback
 from dotenv import load_dotenv
 
 # Import shared XML manager
@@ -790,6 +791,8 @@ class MarketCoordinator:
 
             except Exception as e:
                 print(f"Error in market coordinator: {e}")
+                print("Full stack trace:")
+                traceback.print_exc()
                 await asyncio.sleep(60)  # Wait before retrying
 
     async def close(self):

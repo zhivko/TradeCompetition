@@ -1,0 +1,6 @@
+--- AgentDeepSeekLocal Response at 2025-10-27 10:37:25.006425 ---
+{
+  "action": "hold",
+  "reason": "API error - holding position. Details: API request failed with status 400: {\"error\":\"Trying to keep the first 5772 tokens when context the overflows. However, the model is loaded with context length of only 4096 tokens, which is not enough. Try to load the model with a larger context length, or provide a shorter input\"} (Type: Exception)"
+}
+--- End of response ---

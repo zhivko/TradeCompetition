@@ -261,8 +261,7 @@ class Agent(ABC):
 
     def _construct_prompt(self, market_data: Dict, account_info: Dict, active_trades: List[Dict]) -> str:
         """Construct the prompt to send to the LLM"""
-        prompt = f"""
-Analyze the data above. Be conservative: only recommend BUY or SELL if the signal is strong and aligns with multiple indicators (e.g., RSI not extreme, MACD crossover confirmed). Otherwise, HOLD to avoid overtrading.
+        prompt = f"""Analyze the data above. Be conservative: only recommend BUY or SELL if the signal is strong and aligns with multiple indicators (e.g., RSI not extreme, MACD crossover confirmed). Otherwise, HOLD to avoid overtrading.
 
 Risk Rules (MUST FOLLOW):
 - Max 5 active/open trades at any time (check recent trades summary).
@@ -286,8 +285,7 @@ Active Trades:
 
 Current time: {datetime.now().isoformat()}
 
-Only respond with valid JSON. Do not include any other text or explanation.
-"""
+Only respond with valid JSON. Do not include any other text or explanation."""
         return prompt
 
     def _enforce_risk_rules(self, recommendation: Dict, market_data: Dict, portfolio: Dict) -> Dict:
@@ -326,8 +324,9 @@ Only respond with valid JSON. Do not include any other text or explanation.
             f.write(prompt)
             f.write(f"\n\n--- End of prompt ---")
 
-        # Save the response to llm_response.txt
-        with open('llm_response.txt', 'w', encoding='utf-8') as f:
+        # Save the response to llm_response_[api_type].txt
+        response_filename = f'llm_response_{api_type}.txt'
+        with open(response_filename, 'w', encoding='utf-8') as f:
             f.write(f"--- {api_type} Response at {datetime.now()} ---\n")
             f.write(json.dumps(recommendation, indent=2))
             f.write(f"\n--- End of response ---")
@@ -361,16 +360,23 @@ Only respond with valid JSON. Do not include any other text or explanation.
             try:
                 async with session.post(self.api_url, headers=headers, json=payload) as response:
                     if response.status != 200:
-                        raise Exception(f"API request failed with status {response.status}")
+                        response_text = await response.text()
+                        print(f"DEBUG [{self.__class__.__name__}]: API returned status {response.status}")
+                        print(f"DEBUG [{self.__class__.__name__}]: Response body: {response_text}")
+                        raise Exception(f"API request failed with status {response.status}: {response_text}")
 
                     result = await response.json()
                     return result['choices'][0]['message']['content']
             except Exception as e:
-                print(f"Error calling API: {e}")
+                print(f"Error calling API [{self.__class__.__name__}]: {e}")
+                print(f"Error type: {type(e).__name__}")
+                import traceback
+                print(f"Full traceback:")
+                traceback.print_exc()
                 # Return a default JSON string in case of API failure
                 return json.dumps({
                     "action": "hold",  # Default action if API fails
-                    "reason": "API error - holding position"
+                    "reason": f"API error - holding position. Details: {str(e)} (Type: {type(e).__name__})"
                 })
 
     def _get_payload(self, prompt: str) -> Dict:
@@ -387,8 +393,7 @@ Only respond with valid JSON. Do not include any other text or explanation.
                     "content": prompt
                 }
             ],
-            "temperature": 0.2,  # Lower temperature for more consistent decisions
-            "response_format": {"type": "json_object"}
+            "temperature": 0.2  # Lower temperature for more consistent decisions
         }
 
     @abstractmethod
@@ -452,7 +457,7 @@ class TradeXMLManager:
         ET.SubElement(trade_elem, "takeprofit").text = str(trade.exit_plan.profit_target)  # Changed from profit_target
         ET.SubElement(trade_elem, "stop_loss").text = str(trade.exit_plan.stop_loss)
         ET.SubElement(trade_elem, "invalidation_condition").text = trade.exit_plan.invalidation_condition
-        ET.SubElement(trade_elem, "pnl").text = "0"  # Start with 0
+        ET.SubElement(trade_elem, "agentPnl").text = "0"  # Start with 0
 
         # Keep some additional fields that might be needed
         ET.SubElement(trade_elem, "liquidation_price").text = str(trade.liquidation_price)
@@ -524,19 +529,19 @@ class TradeXMLManager:
                 final_pnl = (exit_price - entry_price) * quantity * leverage
 
                 # Create closed trade element
-                closed_trade_elem = ET.SubElement(closed_trades, "closed_trade")
+                closed_trade_elem = ET.SubElement(closed_trades, "trade")
                 # Copy all trade details
                 for child in trade_elem:
                     closed_trade_elem.append(child)
 
-                # Update final price and pnl
+                # Update final price and agentPnl
                 price_elem = closed_trade_elem.find("price")
                 if price_elem is not None:
                     price_elem.text = str(exit_price)
 
-                pnl_elem = closed_trade_elem.find("pnl")
-                if pnl_elem is not None:
-                    pnl_elem.text = str(final_pnl)
+                agent_pnl_elem = closed_trade_elem.find("agentPnl")
+                if agent_pnl_elem is not None:
+                    agent_pnl_elem.text = str(final_pnl)
 
                 # Remove the trade from active trades
                 active_trades.remove(trade_elem)
@@ -782,6 +787,7 @@ class TradingAgent:
         self.kind = self._determine_kind(trader)
         self.xml_manager = TradeXMLManager()
         self.trade_processor = TradeDecisionProcessor(self.xml_manager)
+        self.trade_processor.kind = self.kind
 
         # Load Binance API credentials from environment
         self.binance_api_key = os.getenv("binance_api_key")
