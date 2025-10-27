@@ -782,9 +782,8 @@ class MarketCoordinator:
 
                 print(f"Market state prepared at {datetime.now()}")
 
-                # Pass the market data to all trading agents
-                for agent in trading_agents:
-                    await agent.process_user_prompt(user_prompt)
+                # Pass the market data to all trading agents in parallel
+                await asyncio.gather(*[agent.process_user_prompt(user_prompt) for agent in trading_agents])
 
                 # Wait for 60 seconds before next update
                 await asyncio.sleep(120)
