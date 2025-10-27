@@ -1,7 +1,6 @@
---- API Response at 2025-10-27 09:45:39.021454 ---
+--- AgentDeepSeekLocal Response at 2025-10-27 10:17:19.466970 ---
 {
   "action": "hold",
-  "confidence": 0.9,
-  "reason": "No strong buy or sell signals from RSI and MACD indicators for any symbol. RSI values are not in extreme zones (e.g., BTC RSI 33.37, not below 30; BNB RSI 69.72, not above 70), and MACD shows no confirmed crossovers. Risk rules not triggered as no trade is warranted."
+  "reason": "API error - holding position"
 }
 --- End of response ---

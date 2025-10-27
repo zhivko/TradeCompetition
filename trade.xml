@@ -16,16 +16,16 @@
     </latest_response>
   </agent>
   <agents>
-    <agent kind="AgentDeepSeek">
-      <latest_response>
-        <response>{"test": "response"}</response>
-        <timestamp>2025-10-27T10:00:08.698723</timestamp>
-      </latest_response>
+    <agent kind="AgentDeepSeekLocal">
       <summary>
         <available_cash>10000.0</available_cash>
         <current_account_value>10000.0</current_account_value>
         <sharpe_ratio>0.0</sharpe_ratio>
       </summary>
+      <latest_response>
+        <response>{"action": "hold", "reason": "API error - holding position"}</response>
+        <timestamp>2025-10-27T10:17:19.466970</timestamp>
+      </latest_response>
     </agent>
   </agents>
 </trading>
