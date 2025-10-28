@@ -3,3 +3,13 @@ python-dotenv
 numpy
 ta-lib
 websockets
+flask
+flask-socketio
+redis
+httpx
+ccxt
+logging
+pybit
+uvicorn
+FastApi
+python-binance

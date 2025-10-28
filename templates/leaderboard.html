@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}LEADERBOARD - Trading Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title mb-0">
+                    <i class="fas fa-trophy"></i> Agent Leaderboard
+                </h4>
+            </div>
+            <div class="card-body">
+                <div id="leaderboard-table">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <!-- Top Performer Chart -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-bar"></i> PNL Comparison
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="pnl-comparison-chart">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sharpe Ratio Chart -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-line"></i> Sharpe Ratio Comparison
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="sharpe-comparison-chart">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Performance Metrics -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-pie"></i> Performance Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="performance-overview">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const socket = window.socket || io();
+    let currentLeaderboard = null;
+
+    socket.on('connect', function() {
+        console.log('Connected to server');
+        updateConnectionStatus(true);
+    });
+
+    socket.on('disconnect', function() {
+        console.log('Disconnected from server');
+        updateConnectionStatus(false);
+    });
+
+    socket.on('data_update', function(data) {
+        currentLeaderboard = data.leaderboard;
+        updateLeaderboard(data.leaderboard);
+        updatePNLChart(data.leaderboard);
+        updateSharpeChart(data.leaderboard);
+        updatePerformanceOverview(data.leaderboard);
+    });
+
+    socket.on('status', function(data) {
+        console.log('Status:', data.message);
+    });
+
+    // Request initial data
+    socket.emit('request_update');
+
+    // Update every 5 seconds
+    setInterval(() => {
+        if (socket.connected) {
+            socket.emit('request_update');
+        }
+    }, 5000);
+
+    function updateConnectionStatus(connected) {
+        const statusEl = document.getElementById('connection-status');
+        if (connected) {
+            statusEl.innerHTML = '<i class="fas fa-circle text-success"></i> Connected';
+        } else {
+            statusEl.innerHTML = '<i class="fas fa-circle text-danger"></i> Disconnected';
+        }
+    }
+
+    function updateLeaderboard(leaderboard) {
+        const container = document.getElementById('leaderboard-table');
+
+        if (!leaderboard || leaderboard.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted">No leaderboard data available</div>';
+            return;
+        }
+
+        let html = `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th><i class="fas fa-trophy"></i> Rank</th>
+                            <th><i class="fas fa-robot"></i> Agent</th>
+                            <th><i class="fas fa-dollar-sign"></i> PNL</th>
+                            <th><i class="fas fa-percentage"></i> Return</th>
+                            <th><i class="fas fa-chart-line"></i> Sharpe</th>
+                            <th><i class="fas fa-play-circle"></i> Active</th>
+                            <th><i class="fas fa-stop-circle"></i> Closed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        leaderboard.forEach((entry, index) => {
+            const rank = entry.rank;
+            const pnlClass = entry.pnl >= 0 ? 'text-success' : 'text-danger';
+            const pnlIcon = entry.pnl >= 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
+
+            let rankBadge = '';
+            if (rank === 1) {
+                rankBadge = '<span class="badge bg-warning text-dark"><i class="fas fa-crown"></i> 1st</span>';
+            } else if (rank === 2) {
+                rankBadge = '<span class="badge bg-secondary">2nd</span>';
+            } else if (rank === 3) {
+                rankBadge = '<span class="badge bg-warning text-dark">3rd</span>';
+            } else {
+                rankBadge = `<span class="badge bg-light text-dark">${rank}th</span>`;
+            }
+
+            html += `
+                <tr>
+                    <td class="text-center">${rankBadge}</td>
+                    <td><strong>${entry.agent}</strong></td>
+                    <td class="${pnlClass}">
+                        <i class="${pnlIcon}"></i>
+                        $${entry.pnl.toFixed(2)}
+                    </td>
+                    <td class="${pnlClass}">${entry.pnl_percentage.toFixed(2)}%</td>
+                    <td>${entry.sharpe_ratio.toFixed(4)}</td>
+                    <td class="text-center">
+                        <span class="badge bg-success">${entry.active_trades}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-secondary">${entry.closed_trades}</span>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    function updatePNLChart(leaderboard) {
+        const container = document.getElementById('pnl-comparison-chart');
+
+        if (!leaderboard || leaderboard.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted">No data available</div>';
+            return;
+        }
+
+        const agents = leaderboard.map(entry => entry.agent);
+        const pnls = leaderboard.map(entry => entry.pnl);
+
+        const data = [{
+            type: 'bar',
+            x: agents,
+            y: pnls,
+            marker: {
+                color: pnls.map(pnl => pnl >= 0 ? '#28a745' : '#dc3545')
+            },
+            text: pnls.map(pnl => `$${pnl.toFixed(2)}`),
+            textposition: 'auto'
+        }];
+
+        const layout = {
+            title: 'Agent PNL Comparison',
+            xaxis: {
+                title: 'Agent',
+                tickangle: -45
+            },
+            yaxis: { title: 'PNL ($)' },
+            margin: { t: 40, b: 80, l: 60, r: 40 },
+            height: 400
+        };
+
+        Plotly.newPlot(container, data, layout);
+    }
+
+    function updateSharpeChart(leaderboard) {
+        const container = document.getElementById('sharpe-comparison-chart');
+
+        if (!leaderboard || leaderboard.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted">No data available</div>';
+            return;
+        }
+
+        const agents = leaderboard.map(entry => entry.agent);
+        const sharpes = leaderboard.map(entry => entry.sharpe_ratio);
+
+        const data = [{
+            type: 'scatter',
+            mode: 'lines+markers',
+            x: agents,
+            y: sharpes,
+            marker: {
+                size: 10,
+                color: sharpes.map(s => s >= 1 ? '#28a745' : s >= 0 ? '#ffc107' : '#dc3545')
+            },
+            line: { shape: 'spline' }
+        }];
+
+        const layout = {
+            title: 'Agent Sharpe Ratio Comparison',
+            xaxis: {
+                title: 'Agent',
+                tickangle: -45
+            },
+            yaxis: { title: 'Sharpe Ratio' },
+            margin: { t: 40, b: 80, l: 60, r: 40 },
+            height: 400
+        };
+
+        Plotly.newPlot(container, data, layout);
+    }
+
+    function updatePerformanceOverview(leaderboard) {
+        const container = document.getElementById('performance-overview');
+
+        if (!leaderboard || leaderboard.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted">No data available</div>';
+            return;
+        }
+
+        // Calculate summary statistics
+        const totalAgents = leaderboard.length;
+        const profitableAgents = leaderboard.filter(entry => entry.pnl > 0).length;
+        const totalPNL = leaderboard.reduce((sum, entry) => sum + entry.pnl, 0);
+        const avgSharpe = leaderboard.reduce((sum, entry) => sum + entry.sharpe_ratio, 0) / totalAgents;
+        const totalActiveTrades = leaderboard.reduce((sum, entry) => sum + entry.active_trades, 0);
+        const totalClosedTrades = leaderboard.reduce((sum, entry) => sum + entry.closed_trades, 0);
+
+        let html = `
+            <div class="row text-center">
+                <div class="col-md-2 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="h3 mb-0">${totalAgents}</div>
+                            <small class="text-muted">Total Agents</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="h3 mb-0 text-success">${profitableAgents}</div>
+                            <small class="text-muted">Profitable</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="h3 mb-0 ${totalPNL >= 0 ? 'text-success' : 'text-danger'}">
+                                $${totalPNL.toFixed(2)}
+                            </div>
+                            <small class="text-muted">Total PNL</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="h3 mb-0">${avgSharpe.toFixed(4)}</div>
+                            <small class="text-muted">Avg Sharpe</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="h3 mb-0 text-primary">${totalActiveTrades}</div>
+                            <small class="text-muted">Active Trades</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="h3 mb-0 text-secondary">${totalClosedTrades}</div>
+                            <small class="text-muted">Closed Trades</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    }
+});
+</script>
+{% endblock %}

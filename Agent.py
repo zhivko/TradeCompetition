@@ -193,7 +193,8 @@ class MarketDataManager:
         # Extract intraday series (this would need more complex parsing in a real implementation)
         data["intraday_prices"] = self._parse_series(coin_section, "Mid prices")
         data["ema_20_series"] = self._parse_series(coin_section, "EMA indicators")
-        data["macd_series"] = self._parse_series(coin_section, "MACD indicators")
+        data["macd_value_series"] = self._parse_series(coin_section, "MACD value indicators")
+        data["macd_signal_series"] = self._parse_series(coin_section, "MACD signal indicators")
         data["rsi_7_series"] = self._parse_series(coin_section, "RSI indicators")
         
         # Extract 4-hour timeframe data
@@ -339,8 +340,26 @@ Only respond with valid JSON. Do not include any other text or explanation."""
         # Call the API (implemented by subclasses)
         content = await self._call_api(prompt)
 
+        # Extract JSON from response (handle thinking blocks)
+        content = self._extract_json_from_response(content)
+
         # Parse the JSON response
-        recommendation = json.loads(content)
+        if not content or not content.strip():
+            print(f"DEBUG [{self.__class__.__name__}]: Empty or None response content")
+            recommendation = {
+                "action": "hold",
+                "reason": "Empty response from API"
+            }
+        else:
+            try:
+                recommendation = json.loads(content)
+            except json.JSONDecodeError as e:
+                print(f"DEBUG [{self.__class__.__name__}]: Failed to parse JSON response: {e}")
+                print(f"DEBUG [{self.__class__.__name__}]: Response content: {content}")
+                recommendation = {
+                    "action": "hold",
+                    "reason": f"Invalid JSON response from API: {str(e)}"
+                }
 
         # Save the prompt and response
         self._save_prompt_and_response(prompt, recommendation, self.__class__.__name__)
@@ -396,6 +415,35 @@ Only respond with valid JSON. Do not include any other text or explanation."""
             "temperature": 0.2  # Lower temperature for more consistent decisions
         }
 
+    def _extract_json_from_response(self, content: str) -> str:
+        """Extract JSON from LLM response that may contain thinking blocks"""
+        import re
+
+        # Look for JSON object in the response
+        # First try to find JSON between ```json and ```
+        json_match = re.search(r'```json\s*(\{.*?\})\s*```', content, re.DOTALL)
+        if json_match:
+            return json_match.group(1)
+
+        # Then try to find JSON at the end (after thinking blocks)
+        last_brace = content.rfind('{')
+        if last_brace != -1:
+            potential_json = content[last_brace:]
+            # Validate it's valid JSON
+            try:
+                json.loads(potential_json)
+                return potential_json
+            except json.JSONDecodeError:
+                pass
+
+        # Fallback: try to find any JSON between { and }
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            return json_match.group(0)
+
+        # If no JSON found, return the original content (might be plain JSON)
+        return content
+
     @abstractmethod
     def _get_headers(self) -> Dict[str, str]:
         """Get headers for the API request"""
@@ -407,13 +455,14 @@ Only respond with valid JSON. Do not include any other text or explanation."""
 class TradeXMLManager:
     """Class to manage trade data persistence in XML format"""
 
-    def __init__(self, xml_file_path: str = "trade.xml"):
+    def __init__(self, xml_file_path: str = "trade.xml", kind: str = None):
         self.xml_manager = TradingXMLManager(xml_file_path)
         self.root = self.xml_manager.root
+        self.kind = kind
 
     def _get_agent_section(self):
         """Get the agent section via the shared manager"""
-        return self.xml_manager.get_agent_section()
+        return self.xml_manager.get_agent_section(self.kind)
 
     def _write_xml(self):
         """Write the current XML structure to file via the shared manager"""
@@ -423,9 +472,11 @@ class TradeXMLManager:
         """Add the latest agent response to the XML"""
         agent_elem = self._get_agent_section()
 
-        # Set kind attribute if provided
+        # Set kind attribute if provided (use self.kind if not specified)
         if kind:
             agent_elem.set("kind", kind)
+        elif self.kind:
+            agent_elem.set("kind", self.kind)
 
         # Remove existing latest_response if it exists
         existing_response = agent_elem.find("latest_response")
@@ -435,11 +486,10 @@ class TradeXMLManager:
         # Create new latest_response element
         latest_response_elem = ET.SubElement(agent_elem, "latest_response")
 
-        # Add the response as JSON string
-        ET.SubElement(latest_response_elem, "response").text = json.dumps(response)
-
-        # Add timestamp
-        ET.SubElement(latest_response_elem, "timestamp").text = datetime.now().isoformat()
+        # Add the response element with timestamp as attribute
+        response_elem = ET.SubElement(latest_response_elem, "response")
+        response_elem.set("timestamp", datetime.now().isoformat())
+        response_elem.text = json.dumps(response)
 
         self._write_xml()
     
@@ -447,6 +497,8 @@ class TradeXMLManager:
         """Add a new active trade to the XML and update cash position"""
         agent_elem = self._get_agent_section()
         active_trades = agent_elem.find("active_trades")
+        if active_trades is None:
+            active_trades = ET.SubElement(agent_elem, "active_trades")
 
         trade_elem = ET.SubElement(active_trades, "trade")  # Changed from active_trade to trade
         ET.SubElement(trade_elem, "coin").text = trade.symbol  # Changed from symbol to coin
@@ -482,7 +534,7 @@ class TradeXMLManager:
         self._write_xml()
 
         # Reduce cash position by the notional value of the trade
-        self.xml_manager.update_cash_position(-trade.notional_usd)
+        self.xml_manager.update_cash_position(-trade.notional_usd, self.kind)
     
     def update_active_trade(self, symbol: str, **updates):
         """Update an existing active trade"""
@@ -507,7 +559,11 @@ class TradeXMLManager:
         """Move an active trade to closed trades and update cash position"""
         agent_elem = self._get_agent_section()
         active_trades = agent_elem.find("active_trades")
+        if active_trades is None:
+            active_trades = ET.SubElement(agent_elem, "active_trades")
         closed_trades = agent_elem.find("closed_trades")
+        if closed_trades is None:
+            closed_trades = ET.SubElement(agent_elem, "closed_trades")
 
         for i, trade_elem in enumerate(active_trades.findall("trade")):  # Changed from active_trade to trade
             coin_elem = trade_elem.find("coin")
@@ -549,7 +605,7 @@ class TradeXMLManager:
                 # Add back the notional value plus PnL to cash position
                 notional_usd = float(trade_elem.find("notional_usd").text or 0)
                 cash_change = notional_usd + final_pnl
-                self.xml_manager.update_cash_position(cash_change)
+                self.xml_manager.update_cash_position(cash_change, self.kind)
                 break
 
         self._write_xml()
@@ -785,7 +841,7 @@ class TradingAgent:
         self.trader = trader
         # Determine kind based on trader type
         self.kind = self._determine_kind(trader)
-        self.xml_manager = TradeXMLManager()
+        self.xml_manager = TradeXMLManager(kind=self.kind)
         self.trade_processor = TradeDecisionProcessor(self.xml_manager)
         self.trade_processor.kind = self.kind
 
@@ -898,6 +954,7 @@ class TradingAgent:
             'trades': active_trades,
             'leverage': 5.0  # Default leverage, can be made configurable
         }
+        return
         recommendation = await self.trader.get_trade_recommendation(market_data, account_info, active_trades, portfolio)
 
         # Save the latest agent response to XML

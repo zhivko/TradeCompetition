@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+
+{% block title %}LIVE - Trading Dashboard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Agent PNL Overview -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-pie"></i> Agent Performance
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="pnl-overview">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Market Data -->
+    <div class="col-lg-8 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-candlestick"></i> Market Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="market-overview">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Active Trades -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-play-circle text-success"></i> Active Trades
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="active-trades-chart">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Closed Trades -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-stop-circle text-secondary"></i> Closed Trades History
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="closed-trades-chart">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Live Trade Feed -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-stream"></i> Live Trade Feed
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="trade-feed" class="trade-feed">
+                    <div class="text-center text-muted">
+                        <i class="fas fa-info-circle"></i> Waiting for trade updates...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Market Details Modal -->
+<div class="modal fade" id="marketModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="marketModalTitle">Market Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="market-details-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const socket = io();
+    let currentData = null;
+
+    socket.on('connect', function() {
+        console.log('Connected to server');
+        updateConnectionStatus(true);
+    });
+
+    socket.on('disconnect', function() {
+        console.log('Disconnected from server');
+        updateConnectionStatus(false);
+    });
+
+    socket.on('data_update', function(data) {
+        currentData = data;
+        updateDashboard(data);
+    });
+
+    socket.on('status', function(data) {
+        console.log('Status:', data.message);
+    });
+
+    // Request initial data
+    socket.emit('request_update');
+
+    // Update every 5 seconds
+    setInterval(() => {
+        if (socket.connected) {
+            socket.emit('request_update');
+        }
+    }, 5000);
+
+    function updateConnectionStatus(connected) {
+        const statusEl = document.getElementById('connection-status');
+        if (connected) {
+            statusEl.innerHTML = '<i class="fas fa-circle text-success"></i> Connected';
+        } else {
+            statusEl.innerHTML = '<i class="fas fa-circle text-danger"></i> Disconnected';
+        }
+    }
+
+    function updateDashboard(data) {
+        updatePNLOverview(data.agents);
+        updateMarketOverview(data.market);
+        updateActiveTradesChart(data.agents);
+        updateClosedTradesChart(data.agents);
+        updateTradeFeed(data.agents);
+    }
+
+    function updatePNLOverview(agents) {
+        const container = document.getElementById('pnl-overview');
+
+        if (!agents || agents.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted">No agent data available</div>';
+            return;
+        }
+
+        let html = '<div class="row">';
+
+        agents.forEach(agent => {
+            const pnlClass = agent.pnl >= 0 ? 'text-success' : 'text-danger';
+            const pnlIcon = agent.pnl >= 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
+
+            html += `
+                <div class="col-12 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">${agent.kind}</h6>
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="h4 mb-0 ${pnlClass}">
+                                        <i class="${pnlIcon}"></i>
+                                        $${agent.pnl.toFixed(2)}
+                                    </div>
+                                    <small class="text-muted">PNL</small>
+                                </div>
+                                <div class="col-6">
+                                    <div class="h4 mb-0 ${pnlClass}">
+                                        ${agent.pnl_percentage.toFixed(2)}%
+                                    </div>
+                                    <small class="text-muted">Return</small>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="h6 mb-0">$${agent.summary.available_cash?.toFixed(2) || '0.00'}</div>
+                                    <small class="text-muted">Cash</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="h6 mb-0">${agent.active_trades_count}</div>
+                                    <small class="text-muted">Active</small>
+                                </div>
+                                <div class="col-4">
+                                    <div class="h6 mb-0">${agent.closed_trades_count}</div>
+                                    <small class="text-muted">Closed</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function updateMarketOverview(market) {
+        const container = document.getElementById('market-overview');
+
+        if (!market || Object.keys(market).length === 0) {
+            container.innerHTML = '<div class="text-center text-muted">No market data available</div>';
+            return;
+        }
+
+        let html = '<div class="row">';
+
+        Object.entries(market).forEach(([symbol, data]) => {
+            const price = data.current_price || 0;
+            const change = data.intraday_prices && data.intraday_prices.length > 1 ?
+                ((price - data.intraday_prices[0]) / data.intraday_prices[0] * 100) : 0;
+            const changeClass = change >= 0 ? 'text-success' : 'text-danger';
+            const changeIcon = change >= 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
+
+            html += `
+                <div class="col-md-6 col-lg-3 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title text-uppercase">${symbol.toUpperCase()}</h6>
+                            <div class="h4 mb-1">$${price.toFixed(2)}</div>
+                            <div class="${changeClass}">
+                                <i class="${changeIcon}"></i>
+                                ${change.toFixed(2)}%
+                            </div>
+                            <small class="text-muted">
+                                RSI: ${data.current_rsi ? parseFloat(data.current_rsi).toFixed(2) : 'N/A'} |
+                                MACD: ${data.current_macd ? parseFloat(data.current_macd).toFixed(4) : 'N/A'}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function updateActiveTradesChart(agents) {
+        const container = document.getElementById('active-trades-chart');
+
+        // Collect all active trades
+        const allTrades = [];
+        agents.forEach(agent => {
+            if (agent.active_trades) {
+                agent.active_trades.forEach(trade => {
+                    allTrades.push({
+                        ...trade,
+                        agent: agent.kind
+                    });
+                });
+            }
+        });
+
+        if (allTrades.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted">No active trades</div>';
+            return;
+        }
+
+        // Group by symbol
+        const symbolCounts = {};
+        allTrades.forEach(trade => {
+            const symbol = trade.symbol || 'Unknown';
+            symbolCounts[symbol] = (symbolCounts[symbol] || 0) + 1;
+        });
+
+        const symbols = Object.keys(symbolCounts);
+        const counts = Object.values(symbolCounts);
+
+        const data = [{
+            type: 'bar',
+            x: symbols,
+            y: counts,
+            marker: {
+                color: '#28a745'
+            }
+        }];
+
+        const layout = {
+            title: 'Active Trades by Symbol',
+            xaxis: { title: 'Symbol' },
+            yaxis: { title: 'Number of Trades' },
+            margin: { t: 40, b: 40, l: 40, r: 40 },
+            height: 300
+        };
+
+        Plotly.newPlot(container, data, layout);
+    }
+
+    function updateClosedTradesChart(agents) {
+        const container = document.getElementById('closed-trades-chart');
+
+        // Collect all closed trades
+        const allTrades = [];
+        agents.forEach(agent => {
+            if (agent.closed_trades) {
+                agent.closed_trades.forEach(trade => {
+                    allTrades.push({
+                        ...trade,
+                        agent: agent.kind
+                    });
+                });
+            }
+        });
+
+        if (allTrades.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted">No closed trades</div>';
+            return;
+        }
+
+        // Group by agent and calculate total PNL
+        const agentPnls = {};
+        allTrades.forEach(trade => {
+            const agent = trade.agent;
+            const pnl = trade.pnl || 0;
+            agentPnls[agent] = (agentPnls[agent] || 0) + pnl;
+        });
+
+        const agents_list = Object.keys(agentPnls);
+        const pnls = Object.values(agentPnls);
+
+        const data = [{
+            type: 'bar',
+            x: agents_list,
+            y: pnls,
+            marker: {
+                color: pnls.map(pnl => pnl >= 0 ? '#28a745' : '#dc3545')
+            }
+        }];
+
+        const layout = {
+            title: 'Closed Trades PNL by Agent',
+            xaxis: { title: 'Agent' },
+            yaxis: { title: 'Total PNL ($)' },
+            margin: { t: 40, b: 40, l: 40, r: 40 },
+            height: 300
+        };
+
+        Plotly.newPlot(container, data, layout);
+    }
+
+    function updateTradeFeed(agents) {
+        const container = document.getElementById('trade-feed');
+
+        let html = '';
+
+        agents.forEach(agent => {
+            if (agent.latest_response) {
+                const timestamp = new Date().toLocaleTimeString();
+                const action = agent.latest_response.action || 'hold';
+                const symbol = agent.latest_response.symbol || 'N/A';
+                const confidence = agent.latest_response.confidence || 0;
+
+                const actionClass = action === 'buy' ? 'text-success' :
+                                  action === 'sell' ? 'text-danger' : 'text-warning';
+
+                html += `
+                    <div class="trade-feed-item mb-2 p-2 border rounded">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${agent.kind}</strong>
+                                <span class="${actionClass} ms-2">
+                                    <i class="fas fa-${action === 'buy' ? 'arrow-up' : action === 'sell' ? 'arrow-down' : 'pause'}"></i>
+                                    ${action.toUpperCase()}
+                                </span>
+                                <span class="text-muted ms-2">${symbol}</span>
+                            </div>
+                            <div class="text-end">
+                                <small class="text-muted">${timestamp}</small>
+                                <div>Confidence: ${(confidence * 100).toFixed(1)}%</div>
+                            </div>
+                        </div>
+                        <div class="mt-1">
+                            <small class="text-muted">${agent.latest_response.reason || 'No reason provided'}</small>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        if (html === '') {
+            html = '<div class="text-center text-muted"><i class="fas fa-info-circle"></i> Waiting for trade updates...</div>';
+        }
+
+        container.innerHTML = html;
+    }
+});
+</script>
+{% endblock %}

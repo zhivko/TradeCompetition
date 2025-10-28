@@ -77,8 +77,8 @@ class TradingXMLManager:
         ET.indent(tree, space="  ", level=0)  # For pretty printing
         tree.write(self.xml_file_path, encoding="utf-8", xml_declaration=True)
     
-    def get_agent_section(self):
-        """Get the agent section, whether it's the root or a child of trading root"""
+    def get_agent_section(self, kind=None):
+        """Get the agent section for a specific kind, whether it's the root or a child of trading root"""
         if self.root.tag == "agent":
             # Old structure, agent is root
             return self.root
@@ -87,11 +87,22 @@ class TradingXMLManager:
             agents_elem = self.root.find("agents")
             if agents_elem is None:
                 agents_elem = ET.SubElement(self.root, "agents")
-            agent_elem = agents_elem.find("agent")
-            if agent_elem is None:
-                # Create agent element if it doesn't exist
+
+            if kind:
+                # Find existing agent with this kind
+                for agent_elem in agents_elem.findall("agent"):
+                    if agent_elem.get("kind") == kind:
+                        return agent_elem
+                # Create new agent element for this kind
                 agent_elem = ET.SubElement(agents_elem, "agent")
-            return agent_elem
+                agent_elem.set("kind", kind)
+                return agent_elem
+            else:
+                # Fallback: return first agent or create one
+                agent_elem = agents_elem.find("agent")
+                if agent_elem is None:
+                    agent_elem = ET.SubElement(agents_elem, "agent")
+                return agent_elem
         else:
             # Unknown structure, return root
             return self.root
@@ -140,9 +151,9 @@ class TradingXMLManager:
 
         return market_data
 
-    def get_account_summary(self) -> Dict[str, float]:
-        """Get the current account summary from XML"""
-        agent_elem = self.get_agent_section()
+    def get_account_summary(self, kind=None) -> Dict[str, float]:
+        """Get the current account summary from XML for a specific agent kind"""
+        agent_elem = self.get_agent_section(kind)
         summary_elem = agent_elem.find("summary")
 
         if summary_elem is None:
@@ -163,9 +174,9 @@ class TradingXMLManager:
 
         return account_summary
 
-    def update_account_summary(self, **updates):
-        """Update account summary values in XML"""
-        agent_elem = self.get_agent_section()
+    def update_account_summary(self, kind=None, **updates):
+        """Update account summary values in XML for a specific agent kind"""
+        agent_elem = self.get_agent_section(kind)
         summary_elem = agent_elem.find("summary")
 
         if summary_elem is None:
@@ -180,24 +191,24 @@ class TradingXMLManager:
 
         self._write_xml()
 
-    def update_cash_position(self, amount_change: float):
-        """Update available cash by adding/subtracting the amount"""
-        current_summary = self.get_account_summary()
+    def update_cash_position(self, amount_change: float, kind=None):
+        """Update available cash by adding/subtracting the amount for a specific agent kind"""
+        current_summary = self.get_account_summary(kind)
         current_cash = current_summary.get("available_cash", 10000.0)
         new_cash = current_cash + amount_change
-        self.update_account_summary(available_cash=new_cash)
+        self.update_account_summary(kind=kind, available_cash=new_cash)
 
-    def update_account_value(self, new_value: float):
-        """Update the current account value"""
-        self.update_account_summary(current_account_value=new_value)
+    def update_account_value(self, new_value: float, kind=None):
+        """Update the current account value for a specific agent kind"""
+        self.update_account_summary(kind=kind, current_account_value=new_value)
 
-    def update_total_return(self, new_return: float):
-        """Update the total return percentage"""
-        self.update_account_summary(total_return=new_return)
+    def update_total_return(self, new_return: float, kind=None):
+        """Update the total return percentage for a specific agent kind"""
+        self.update_account_summary(kind=kind, total_return=new_return)
 
-    def clear_all_trades(self):
-        """Clear all active and closed trades from XML"""
-        agent_elem = self.get_agent_section()
+    def clear_all_trades(self, kind=None):
+        """Clear all active and closed trades from XML for a specific agent kind"""
+        agent_elem = self.get_agent_section(kind)
 
         active_trades = agent_elem.find("active_trades")
         if active_trades is not None:
@@ -217,5 +228,20 @@ class TradingXMLManager:
         agents_elem = self.root.find("agents")
         if agents_elem is None:
             agents_elem = ET.SubElement(self.root, "agents")
+
+        self._write_xml()
+
+    def remove_unused_agents(self, active_kinds):
+        """Remove agents from XML that are not in the active_kinds list"""
+        agents_elem = self.root.find("agents")
+        if agents_elem is None:
+            return
+
+        # Get all agent elements
+        agent_elems = agents_elem.findall("agent")
+        for agent_elem in agent_elems:
+            kind = agent_elem.get("kind")
+            if kind not in active_kinds:
+                agents_elem.remove(agent_elem)
 
         self._write_xml()

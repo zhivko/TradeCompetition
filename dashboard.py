@@ -1,0 +1,313 @@
+import xml.etree.ElementTree as ET
+from datetime import datetime
+import time
+import threading
+import json
+import os
+from flask import Flask, render_template, jsonify, request
+from flask_socketio import SocketIO, emit
+
+app = Flask(__name__)
+socketio = SocketIO(app)
+
+# WebSocket connections
+connected_clients = set()
+
+INITIAL_CAPITAL = 10000.0
+
+class DashboardDataManager:
+    """Manages data extraction from trade.xml for the dashboard"""
+
+    def __init__(self, xml_file="trade.xml"):
+        self.xml_file = xml_file
+        self.last_update = None
+
+    def get_agents_data(self):
+        """Extract all agent data from XML"""
+        if not os.path.exists(self.xml_file) or os.path.getsize(self.xml_file) == 0:
+            return []
+        try:
+            tree = ET.parse(self.xml_file)
+            root = tree.getroot()
+
+            agents_data = []
+
+            # Handle both old and new XML structures
+            if root.tag == "trading":
+                agents_elem = root.find("agents")
+                if agents_elem is not None:
+                    for agent_elem in agents_elem.findall("agent"):
+                        agent_data = self._parse_agent_element(agent_elem)
+                        if agent_data:
+                            agents_data.append(agent_data)
+            else:
+                # Old structure - single agent
+                agent_data = self._parse_agent_element(root)
+                if agent_data:
+                    agents_data.append(agent_data)
+
+            return agents_data
+
+        except Exception as e:
+            print(f"Error parsing XML: {e}")
+            return []
+
+    def _parse_agent_element(self, agent_elem):
+        """Parse individual agent element"""
+        try:
+            agent_kind = agent_elem.get("kind", "Unknown")
+
+            # Get summary data
+            summary_elem = agent_elem.find("summary")
+            summary = {}
+            if summary_elem is not None:
+                for elem in summary_elem:
+                    try:
+                        summary[elem.tag] = float(elem.text or 0.0)
+                    except (ValueError, TypeError):
+                        summary[elem.tag] = 0.0
+
+            # Calculate PNL
+            current_value = summary.get("current_account_value", INITIAL_CAPITAL)
+            pnl = current_value - INITIAL_CAPITAL
+            pnl_percentage = (pnl / INITIAL_CAPITAL) * 100 if INITIAL_CAPITAL > 0 else 0
+
+            # Get active trades
+            active_trades = []
+            active_trades_elem = agent_elem.find("active_trades")
+            if active_trades_elem is not None:
+                for trade_elem in active_trades_elem:
+                    trade_data = self._parse_trade_element(trade_elem)
+                    if trade_data:
+                        active_trades.append(trade_data)
+
+            # Get closed trades
+            closed_trades = []
+            closed_trades_elem = agent_elem.find("closed_trades")
+            if closed_trades_elem is not None:
+                for trade_elem in closed_trades_elem:
+                    trade_data = self._parse_trade_element(trade_elem)
+                    if trade_data:
+                        closed_trades.append(trade_data)
+
+            # Get latest response
+            latest_response = None
+            response_elem = agent_elem.find("response")
+            if response_elem is not None and response_elem.text:
+                try:
+                    latest_response = json.loads(response_elem.text)
+                except json.JSONDecodeError:
+                    latest_response = {"raw": response_elem.text}
+
+            # Also check for latest_response element
+            latest_response_elem = agent_elem.find("latest_response")
+            if latest_response_elem is not None:
+                response_elem = latest_response_elem.find("response")
+                if response_elem is not None and response_elem.text:
+                    try:
+                        latest_response = json.loads(response_elem.text)
+                    except json.JSONDecodeError:
+                        latest_response = {"raw": response_elem.text}
+
+            return {
+                "kind": agent_kind,
+                "summary": summary,
+                "pnl": pnl,
+                "pnl_percentage": pnl_percentage,
+                "active_trades": active_trades,
+                "closed_trades": closed_trades,
+                "latest_response": latest_response,
+                "active_trades_count": len(active_trades),
+                "closed_trades_count": len(closed_trades)
+            }
+
+        except Exception as e:
+            print(f"Error parsing agent element: {e}")
+            return None
+
+    def _parse_trade_element(self, trade_elem):
+        """Parse individual trade element"""
+        try:
+            trade_data = {}
+            for elem in trade_elem:
+                if elem.tag in ["entry_price", "quantity", "stop_loss", "exit_price", "pnl"]:
+                    try:
+                        trade_data[elem.tag] = float(elem.text or 0.0)
+                    except (ValueError, TypeError):
+                        trade_data[elem.tag] = 0.0
+                elif elem.tag in ["timestamp", "symbol", "action", "status"]:
+                    trade_data[elem.tag] = elem.text or ""
+                else:
+                    trade_data[elem.tag] = elem.text or ""
+
+            return trade_data
+
+        except Exception as e:
+            print(f"Error parsing trade element: {e}")
+            return None
+
+    def get_market_data(self):
+        """Extract market data from XML"""
+        if not os.path.exists(self.xml_file) or os.path.getsize(self.xml_file) == 0:
+            return {}
+        try:
+            tree = ET.parse(self.xml_file)
+            root = tree.getroot()
+
+            market_data = {}
+
+            # Handle both old and new XML structures
+            if root.tag == "trading":
+                state_of_market = root.find("state_of_market")
+            else:
+                state_of_market = root.find("state_of_market")
+
+            if state_of_market is not None:
+                for coin_elem in state_of_market.findall("coin"):
+                    coin_name = coin_elem.find("name").text.lower()
+                    coin_data = {}
+
+                    # Get current price and indicators
+                    for elem in coin_elem:
+                        if elem.tag == "name":
+                            continue
+                        elif elem.tag.endswith("_series"):
+                            # Handle series data
+                            values = []
+                            for value_elem in elem.findall("value"):
+                                try:
+                                    values.append(float(value_elem.text))
+                                except (ValueError, TypeError):
+                                    values.append(0.0)
+                            coin_data[elem.tag] = values
+                        else:
+                            try:
+                                coin_data[elem.tag] = float(elem.text) if elem.text and elem.text.replace('.', '', 1).replace('-', '', 1).replace('e', '', 1).replace('+', '', 1).isdigit() else elem.text
+                            except (ValueError, TypeError, AttributeError):
+                                coin_data[elem.tag] = elem.text
+
+                    market_data[coin_name] = coin_data
+
+            return market_data
+
+        except Exception as e:
+            print(f"Error parsing market data: {e}")
+            return {}
+
+    def get_leaderboard_data(self):
+        """Generate leaderboard data sorted by PNL and Sharpe ratio"""
+        agents = self.get_agents_data()
+
+        # Sort by PNL descending, then by Sharpe ratio descending
+        sorted_agents = sorted(agents,
+                             key=lambda x: (x["pnl"], x.get("summary", {}).get("sharpe_ratio", 0)),
+                             reverse=True)
+
+        leaderboard = []
+        for rank, agent in enumerate(sorted_agents, 1):
+            leaderboard.append({
+                "rank": rank,
+                "agent": agent["kind"],
+                "pnl": agent["pnl"],
+                "pnl_percentage": agent["pnl_percentage"],
+                "sharpe_ratio": agent.get("summary", {}).get("sharpe_ratio", 0),
+                "active_trades": agent["active_trades_count"],
+                "closed_trades": agent["closed_trades_count"]
+            })
+
+        return leaderboard
+
+# Initialize data manager
+data_manager = DashboardDataManager()
+
+@app.route('/')
+def index():
+    """Redirect to live page"""
+    return render_template('live.html')
+
+@app.route('/live')
+def live():
+    """Live dashboard page"""
+    return render_template('live.html')
+
+@app.route('/leaderboard')
+def leaderboard():
+    """Leaderboard page"""
+    return render_template('leaderboard.html')
+
+@app.route('/models')
+def models():
+    """Models page"""
+    return render_template('models.html')
+
+@app.route('/api/agents')
+def api_agents():
+    """API endpoint for agent data"""
+    agents = data_manager.get_agents_data()
+    return jsonify(agents)
+
+@app.route('/api/market')
+def api_market():
+    """API endpoint for market data"""
+    market = data_manager.get_market_data()
+    return jsonify(market)
+
+@app.route('/api/leaderboard')
+def api_leaderboard():
+    """API endpoint for leaderboard data"""
+    leaderboard = data_manager.get_leaderboard_data()
+    return jsonify(leaderboard)
+
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
+
+@socketio.on('request_update')
+def handle_request_update():
+    agents = data_manager.get_agents_data()
+    market = data_manager.get_market_data()
+    leaderboard = data_manager.get_leaderboard_data()
+
+    emit('data_update', {
+        'agents': agents,
+        'market': market,
+        'leaderboard': leaderboard,
+        'timestamp': datetime.now().isoformat()
+    })
+
+def background_update():
+    """Background task for periodic updates"""
+    while True:
+        try:
+            # Send updates to all connected clients
+            agents = data_manager.get_agents_data()
+            market = data_manager.get_market_data()
+            leaderboard = data_manager.get_leaderboard_data()
+
+            update_data = {
+                'agents': agents,
+                'market': market,
+                'leaderboard': leaderboard,
+                'timestamp': datetime.now().isoformat()
+            }
+
+            # Send to all connected clients
+            socketio.emit('data_update', update_data)
+
+        except Exception as e:
+            print(f"Error in background update: {e}")
+
+        # Update every 5 seconds
+        time.sleep(5)
+
+# Start background thread
+update_thread = threading.Thread(target=background_update)
+update_thread.daemon = True
+update_thread.start()
+
+if __name__ == '__main__':
+    socketio.run(app, host='127.0.0.1', port=5001, debug=True)
