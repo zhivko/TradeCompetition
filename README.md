@@ -102,7 +102,7 @@ Start the web dashboard for monitoring and competition:
 python dashboard.py
 ```
 
-The dashboard will be available at `http://127.0.0.1:5001` and provides:
+The dashboard will be available at `http://127.0.0.1:5000` and provides:
 - **Live Dashboard** (`/`): Real-time overview of agent performance and market data
 - **Leaderboard** (`/leaderboard`): Competitive ranking of all trading agents
 - **Models** (`/models`): Detailed view of individual agent performance and configurations

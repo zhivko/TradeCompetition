@@ -3,17 +3,15 @@
   <state_of_market>
     <coin>
       <name>BTC</name>
-      <current_price>110273.53</current_price>
-      <current_ema20>110220.66221762497</current_ema20>
-      <current_macd_value>-2.2239864725561347</current_macd_value>
-      <current_macd_signal>-3.972157685474362</current_macd_signal>
-      <current_rsi>49.233670496142004</current_rsi>
-      <open_interest_latest>76747.909</open_interest_latest>
-      <open_interest_avg>76747.909</open_interest_avg>
+      <current_price>110229.42</current_price>
+      <current_ema20>110214.14469828577</current_ema20>
+      <current_macd_value>-5.623902107719914</current_macd_value>
+      <current_macd_signal>-4.684606566165028</current_macd_signal>
+      <current_rsi>48.900481875290545</current_rsi>
+      <open_interest_latest>76745.860</open_interest_latest>
+      <open_interest_avg>76745.860</open_interest_avg>
       <funding_rate>9.782e-05</funding_rate>
       <intraday_prices>
-        <value>110191.2</value>
-        <value>110173.7</value>
         <value>110174.4</value>
         <value>110186.6</value>
         <value>110189.9</value>
@@ -21,74 +19,76 @@
         <value>110223.5</value>
         <value>110250.0</value>
         <value>110217.6</value>
-        <value>110217.6</value>
+        <value>110179.8</value>
+        <value>110195.1</value>
+        <value>110207.8</value>
       </intraday_prices>
       <ema_20_series>
-        <value>110231.39736592505</value>
-        <value>110225.9023786941</value>
-        <value>110220.99739024704</value>
-        <value>110217.72144831874</value>
-        <value>110215.0717865741</value>
-        <value>110217.77923547181</value>
-        <value>110218.32407018878</value>
-        <value>110221.3408254089</value>
-        <value>110220.98455632234</value>
-        <value>110220.66221762497</value>
+        <value>110220.64548298426</value>
+        <value>110217.40305603338</value>
+        <value>110214.78371736353</value>
+        <value>110217.51860142415</value>
+        <value>110218.08825843137</value>
+        <value>110221.1274719141</value>
+        <value>110220.79152220799</value>
+        <value>110216.887567712</value>
+        <value>110214.81256126323</value>
+        <value>110214.14469828577</value>
       </ema_20_series>
       <macd_value_series>
-        <value>0.3590943523304304</value>
-        <value>-4.25461283797631</value>
-        <value>-7.7650146214000415</value>
-        <value>-9.453619840642205</value>
-        <value>-10.405619715078501</value>
-        <value>-6.757122525945306</value>
-        <value>-5.417050682299305</value>
-        <value>-2.191443959425669</value>
-        <value>-2.223900869314093</value>
-        <value>-2.2239864725561347</value>
+        <value>-7.12499804473191</value>
+        <value>-8.820692314213375</value>
+        <value>-9.785459137143334</value>
+        <value>-6.154031899990514</value>
+        <value>-4.834206778003136</value>
+        <value>-1.631104967003921</value>
+        <value>-1.6875795599044068</value>
+        <value>-4.7279789753229124</value>
+        <value>-5.835665366597823</value>
+        <value>-5.623902107719914</value>
       </macd_value_series>
       <macd_signal_series>
-        <value>-1.018851133442591</value>
-        <value>-1.6660034743493348</value>
-        <value>-2.885805703759476</value>
-        <value>-4.199368531136022</value>
-        <value>-5.4406187679245175</value>
-        <value>-5.703919519528675</value>
-        <value>-5.646545752082801</value>
-        <value>-4.955525393551374</value>
-        <value>-4.4092004887039185</value>
-        <value>-3.972157685474362</value>
+        <value>-2.746595470262238</value>
+        <value>-3.9614148390524653</value>
+        <value>-5.126223698670639</value>
+        <value>-5.331785338934614</value>
+        <value>-5.232269626748318</value>
+        <value>-4.512036694799439</value>
+        <value>-3.9471452678204324</value>
+        <value>-4.103312009320929</value>
+        <value>-4.449782680776307</value>
+        <value>-4.684606566165028</value>
       </macd_signal_series>
       <rsi_7_series>
-        <value>38.92308539064218</value>
-        <value>35.54940731905106</value>
-        <value>35.8090505231278</value>
-        <value>40.669088316160824</value>
-        <value>42.05358935362317</value>
-        <value>59.8205712849579</value>
-        <value>52.77627161828351</value>
-        <value>60.048719790890935</value>
-        <value>49.233670496142004</value>
-        <value>49.233670496142004</value>
+        <value>35.82902508624768</value>
+        <value>40.69013275701084</value>
+        <value>42.07486111361148</value>
+        <value>59.8417121679166</value>
+        <value>52.792685867209045</value>
+        <value>60.06455870474052</value>
+        <value>49.244274800656015</value>
+        <value>39.54739833540139</value>
+        <value>44.69046923545604</value>
+        <value>48.900481875290545</value>
       </rsi_7_series>
       <rsi_14_series>
-        <value>43.5566251366939</value>
-        <value>41.71959973937052</value>
-        <value>41.825291183298994</value>
-        <value>43.74025912101353</value>
-        <value>44.27460106682239</value>
-        <value>52.21353171170955</value>
-        <value>49.3862766151787</value>
-        <value>53.016457350946425</value>
-        <value>48.44174723566938</value>
-        <value>48.44174723566938</value>
+        <value>42.661820270033566</value>
+        <value>44.56657486141011</value>
+        <value>45.09785457835044</value>
+        <value>52.9803922828288</value>
+        <value>50.090497849163306</value>
+        <value>53.69461477515082</value>
+        <value>49.0324948059517</value>
+        <value>44.20967025905414</value>
+        <value>46.503327688991405</value>
+        <value>48.39967986990407</value>
       </rsi_14_series>
-      <long_term_ema_20>110300.31166256702</long_term_ema_20>
-      <long_term_ema_50>110900.39853259188</long_term_ema_50>
+      <long_term_ema_20>110299.38785304321</long_term_ema_20>
+      <long_term_ema_50>110900.01814043502</long_term_ema_50>
       <atr_3_period>629.017753930057</atr_3_period>
       <atr_14_period>1278.2012250877622</atr_14_period>
-      <current_volume>6265.162</current_volume>
-      <avg_volume>21597.8035</avg_volume>
+      <current_volume>6322.993</current_volume>
+      <avg_volume>21601.934285714287</avg_volume>
       <long_macd_series>
         <value>-1670.9826749271015</value>
         <value>-1795.5561793764355</value>
@@ -99,7 +99,7 @@
         <value>-1133.0268605796882</value>
         <value>-1315.4152675052028</value>
         <value>-1331.87067579625</value>
-        <value>-967.0745849909581</value>
+        <value>-967.8483741647506</value>
       </long_macd_series>
       <long_rsi_14_series>
         <value>37.74118453562603</value>
@@ -111,25 +111,23 @@
         <value>50.1703584823076</value>
         <value>47.28388672495663</value>
         <value>44.97578635127321</value>
-        <value>53.08501118568237</value>
+        <value>53.02747578131108</value>
       </long_rsi_14_series>
       <top_10_buy_liquidations />
       <top_10_sell_liquidations />
-      <timestamp>2025-11-01T20:30:54.934538</timestamp>
+      <timestamp>2025-11-01T20:38:06.614694</timestamp>
     </coin>
     <coin>
       <name>ETH</name>
-      <current_price>3874.98</current_price>
-      <current_ema20>3874.3273232898146</current_ema20>
-      <current_macd_value>0.2930565747333276</current_macd_value>
-      <current_macd_signal>0.6656752743597228</current_macd_signal>
-      <current_rsi>42.718947220953034</current_rsi>
-      <open_interest_latest>1584484.210</open_interest_latest>
-      <open_interest_avg>1584484.210</open_interest_avg>
+      <current_price>3875.48</current_price>
+      <current_ema20>3873.97431995872</current_ema20>
+      <current_macd_value>0.12469544577788838</current_macd_value>
+      <current_macd_signal>0.5230723855022298</current_macd_signal>
+      <current_rsi>52.44417431257295</current_rsi>
+      <open_interest_latest>1584141.332</open_interest_latest>
+      <open_interest_avg>1584141.332</open_interest_avg>
       <funding_rate>0.0001</funding_rate>
       <intraday_prices>
-        <value>3874.34</value>
-        <value>3875.35</value>
         <value>3876.71</value>
         <value>3876.8</value>
         <value>3876.21</value>
@@ -137,74 +135,76 @@
         <value>3873.08</value>
         <value>3873.65</value>
         <value>3872.49</value>
-        <value>3873.35</value>
+        <value>3870.29</value>
+        <value>3873.11</value>
+        <value>3874.43</value>
       </intraday_prices>
       <ema_20_series>
-        <value>3873.9809666720157</value>
-        <value>3874.1113507984905</value>
-        <value>3874.3588411986343</value>
-        <value>3874.59133251305</value>
-        <value>3874.745491321331</value>
-        <value>3874.912587385966</value>
-        <value>3874.7380552539694</value>
-        <value>3874.6344309440674</value>
-        <value>3874.4301994255848</value>
-        <value>3874.3273232898146</value>
+        <value>3874.3112704904925</value>
+        <value>3874.5482923485406</value>
+        <value>3874.706550220108</value>
+        <value>3874.87735496105</value>
+        <value>3874.7061782980927</value>
+        <value>3874.6055898887507</value>
+        <value>3874.404105137441</value>
+        <value>3874.012285600542</value>
+        <value>3873.9263536385856</value>
+        <value>3873.97431995872</value>
       </ema_20_series>
       <macd_value_series>
-        <value>1.0421415019231972</value>
-        <value>1.0230184428505709</value>
-        <value>1.104867687818114</value>
-        <value>1.1635829915639988</value>
-        <value>1.1492592780705309</value>
-        <value>1.1480739267231002</value>
-        <value>0.8612412562747522</value>
-        <value>0.6721701753676825</value>
-        <value>0.4238418906070365</value>
-        <value>0.2930565747333276</value>
+        <value>1.2729734067306708</value>
+        <value>1.3220321714875354</value>
+        <value>1.2983371048840127</value>
+        <value>1.2881106327031375</value>
+        <value>0.9925986031284992</value>
+        <value>0.7952305047083428</value>
+        <value>0.5389993107360169</value>
+        <value>0.15660735750134336</value>
+        <value>0.08018508807208491</value>
+        <value>0.12469544577788838</value>
       </macd_value_series>
       <macd_signal_series>
-        <value>0.4021728437632188</value>
-        <value>0.5263419635806892</value>
-        <value>0.6420471084281741</value>
-        <value>0.7463542850553391</value>
-        <value>0.8269352836583774</value>
-        <value>0.891163012271322</value>
-        <value>0.885178661072008</value>
-        <value>0.8425769639311429</value>
-        <value>0.7588299492663216</value>
-        <value>0.6656752743597228</value>
+        <value>0.8457738728206614</value>
+        <value>0.9410255325540362</value>
+        <value>1.0124878470200316</value>
+        <value>1.0676124041566528</value>
+        <value>1.0526096439510222</value>
+        <value>1.0011338161024863</value>
+        <value>0.9087069150291924</value>
+        <value>0.7582870035236227</value>
+        <value>0.6226666204333151</value>
+        <value>0.5230723855022298</value>
       </macd_signal_series>
       <rsi_7_series>
-        <value>48.668966028964604</value>
-        <value>53.097720917609756</value>
-        <value>58.69604000057094</value>
-        <value>59.0731967773333</value>
-        <value>55.216998872747446</value>
-        <value>56.83289894592001</value>
-        <value>37.97846171632485</value>
-        <value>41.7368631665972</value>
-        <value>36.48720364461025</value>
-        <value>42.718947220953034</value>
+        <value>58.59488123999493</value>
+        <value>58.97284210525725</value>
+        <value>55.12433365509981</value>
+        <value>56.74311576537472</value>
+        <value>37.922050639283924</value>
+        <value>41.68319725275802</value>
+        <value>36.44110814605317</value>
+        <value>28.508311061308067</value>
+        <value>46.066099665771944</value>
+        <value>52.44417431257295</value>
       </rsi_7_series>
       <rsi_14_series>
-        <value>50.385852818012765</value>
-        <value>52.307654388185966</value>
-        <value>54.84406781394714</value>
-        <value>55.014570613977696</value>
-        <value>53.58612649995277</value>
-        <value>54.2153945357538</value>
-        <value>46.25148480702504</value>
-        <value>47.632191836974435</value>
-        <value>45.09346214633793</value>
-        <value>47.334589393262874</value>
+        <value>54.07737796573069</value>
+        <value>54.24960410323997</value>
+        <value>52.85029397409373</value>
+        <value>53.48538720573743</value>
+        <value>45.672276993723266</value>
+        <value>47.060321958633615</value>
+        <value>44.56490656878065</value>
+        <value>40.210067303067824</value>
+        <value>47.31669050662972</value>
+        <value>50.29483814484422</value>
       </rsi_14_series>
-      <long_term_ema_20>3886.7258163950078</long_term_ema_20>
-      <long_term_ema_50>3930.0325732165556</long_term_ema_50>
+      <long_term_ema_20>3886.7267687759604</long_term_ema_20>
+      <long_term_ema_50>3930.0329653734184</long_term_ema_50>
       <atr_3_period>42.63028168394316</atr_3_period>
       <atr_14_period>66.20702468972988</atr_14_period>
-      <current_volume>273634.495</current_volume>
-      <avg_volume>618909.0657142857</avg_volume>
+      <current_volume>276632.36</current_volume>
+      <avg_volume>619123.1989285714</avg_volume>
       <long_macd_series>
         <value>-100.98019697759446</value>
         <value>-100.04693131223576</value>
@@ -215,7 +215,7 @@
         <value>-61.0491566416008</value>
         <value>-72.10803756809264</value>
         <value>-73.44661663910028</value>
-        <value>-47.22522052382783</value>
+        <value>-47.22442280302994</value>
       </long_macd_series>
       <long_rsi_14_series>
         <value>37.70970578962213</value>
@@ -227,25 +227,23 @@
         <value>46.396759713844865</value>
         <value>44.913146893469786</value>
         <value>46.01147902869759</value>
-        <value>49.4148885727833</value>
+        <value>49.415825809877866</value>
       </long_rsi_14_series>
       <top_10_buy_liquidations />
       <top_10_sell_liquidations />
-      <timestamp>2025-11-01T20:30:57.711730</timestamp>
+      <timestamp>2025-11-01T20:38:09.277333</timestamp>
     </coin>
     <coin>
       <name>BNB</name>
-      <current_price>1093.27</current_price>
-      <current_ema20>1093.0385198767374</current_ema20>
-      <current_macd_value>-0.10707297590624876</current_macd_value>
-      <current_macd_signal>-0.05097790360901283</current_macd_signal>
-      <current_rsi>49.69949070957328</current_rsi>
-      <open_interest_latest>506508.51</open_interest_latest>
-      <open_interest_avg>506508.51</open_interest_avg>
+      <current_price>1093.15</current_price>
+      <current_ema20>1092.960818156736</current_ema20>
+      <current_macd_value>-0.15782812853763062</current_macd_value>
+      <current_macd_signal>-0.1045923759456824</current_macd_signal>
+      <current_rsi>44.461213693324325</current_rsi>
+      <open_interest_latest>506476.24</open_interest_latest>
+      <open_interest_avg>506476.24</open_interest_avg>
       <funding_rate>-0.00014754</funding_rate>
       <intraday_prices>
-        <value>1092.79</value>
-        <value>1092.48</value>
         <value>1093.38</value>
         <value>1092.94</value>
         <value>1093.19</value>
@@ -253,74 +251,76 @@
         <value>1092.54</value>
         <value>1092.77</value>
         <value>1092.39</value>
-        <value>1092.95</value>
+        <value>1092.94</value>
+        <value>1092.55</value>
+        <value>1092.6</value>
       </intraday_prices>
       <ema_20_series>
-        <value>1093.2584750609649</value>
-        <value>1093.1843345789682</value>
-        <value>1093.2029693809714</value>
-        <value>1093.1779246780218</value>
-        <value>1093.1790747086864</value>
-        <value>1093.2182104507162</value>
-        <value>1093.1536189792193</value>
-        <value>1093.1170838383414</value>
-        <value>1093.0478377584993</value>
-        <value>1093.0385198767374</value>
+        <value>1093.2200429287907</value>
+        <value>1093.1933721736677</value>
+        <value>1093.1930510142708</value>
+        <value>1093.2308556795783</value>
+        <value>1093.165059900571</value>
+        <value>1093.1274351481356</value>
+        <value>1093.0572032292655</value>
+        <value>1093.0460410169544</value>
+        <value>1092.9987990153397</value>
+        <value>1092.960818156736</value>
       </ema_20_series>
       <macd_value_series>
-        <value>0.018617852459328788</value>
-        <value>-0.043393671892090424</value>
-        <value>-0.019688812943513767</value>
-        <value>-0.03599197116977848</value>
-        <value>-0.028411915977585522</value>
-        <value>0.009759488130157479</value>
-        <value>-0.04420604412894136</value>
-        <value>-0.06763538086602239</value>
-        <value>-0.1155343155646733</value>
-        <value>-0.10707297590624876</value>
+        <value>-0.05023700480410298</value>
+        <value>-0.0635828539409431</value>
+        <value>-0.05337139267862767</value>
+        <value>-0.01285390715770518</value>
+        <value>-0.06472363893294641</value>
+        <value>-0.08627714799968089</value>
+        <value>-0.1324939753540093</value>
+        <value>-0.12331919364737587</value>
+        <value>-0.1458367385364454</value>
+        <value>-0.15782812853763062</value>
       </macd_value_series>
       <macd_signal_series>
-        <value>0.05466930813912688</value>
-        <value>0.03505671213288342</value>
-        <value>0.024107607117603985</value>
-        <value>0.012087691460127491</value>
-        <value>0.003987769972584888</value>
-        <value>0.005142113604099406</value>
-        <value>-0.004727517942508747</value>
-        <value>-0.017309090527211475</value>
-        <value>-0.03695413553470384</value>
-        <value>-0.05097790360901283</value>
+        <value>-0.029691457073944192</value>
+        <value>-0.03646973644734397</value>
+        <value>-0.03985006769360071</value>
+        <value>-0.034450835586421605</value>
+        <value>-0.040505396255726564</value>
+        <value>-0.04965974660451743</value>
+        <value>-0.0662265923544158</value>
+        <value>-0.07764511261300781</value>
+        <value>-0.09128343779769534</value>
+        <value>-0.1045923759456824</value>
       </macd_signal_series>
       <rsi_7_series>
-        <value>39.40396481784641</value>
-        <value>34.48774861719428</value>
-        <value>53.94858922060859</value>
-        <value>46.132292084617525</value>
-        <value>50.85245431440878</value>
-        <value>57.76130344312038</value>
-        <value>40.37821086989879</value>
-        <value>44.636170204643726</value>
-        <value>39.23516562293953</value>
-        <value>49.69949070957328</value>
+        <value>53.906819154711805</value>
+        <value>46.10651457572596</value>
+        <value>50.82345102052776</value>
+        <value>57.729476166868984</value>
+        <value>40.368089757507384</value>
+        <value>44.6240112378555</value>
+        <value>39.22755482724926</value>
+        <value>49.53313166199535</value>
+        <value>43.439217953408054</value>
+        <value>44.461213693324325</value>
       </rsi_7_series>
       <rsi_14_series>
-        <value>47.81051984271608</value>
-        <value>45.229650751452475</value>
-        <value>53.13866980659447</value>
-        <value>49.3841086602913</value>
-        <value>51.48172413318457</value>
-        <value>54.71538405273441</value>
-        <value>46.040847445073965</value>
-        <value>47.986115010385134</value>
-        <value>45.09363782786684</value>
-        <value>49.8875402036658</value>
+        <value>52.64178473292448</value>
+        <value>48.977568281574975</value>
+        <value>51.061912877696415</value>
+        <value>54.28014854840387</value>
+        <value>45.771179404531544</value>
+        <value>47.70501343032173</value>
+        <value>44.85874040496024</value>
+        <value>49.550474561014035</value>
+        <value>46.52737882189216</value>
+        <value>46.974044585854315</value>
       </rsi_14_series>
-      <long_term_ema_20>1095.2055114788734</long_term_ema_20>
-      <long_term_ema_50>1106.0703383396967</long_term_ema_50>
+      <long_term_ema_20>1095.17217814554</long_term_ema_20>
+      <long_term_ema_50>1106.0566128495007</long_term_ema_50>
       <atr_3_period>9.414128703121525</atr_3_period>
       <atr_14_period>17.51031572484406</atr_14_period>
-      <current_volume>63486.55</current_volume>
-      <avg_volume>187952.375</avg_volume>
+      <current_volume>64314.77</current_volume>
+      <avg_volume>188011.5335714286</avg_volume>
       <long_macd_series>
         <value>-16.73145754289294</value>
         <value>-18.7651775562274</value>
@@ -331,7 +331,7 @@
         <value>-10.910951752107849</value>
         <value>-14.108495748449513</value>
         <value>-14.60226071916918</value>
-        <value>-10.994395939061178</value>
+        <value>-11.022316166981454</value>
       </long_macd_series>
       <long_rsi_14_series>
         <value>48.46078155749231</value>
@@ -343,25 +343,23 @@
         <value>41.61572390311842</value>
         <value>37.8807837971348</value>
         <value>39.557798606104306</value>
-        <value>42.27158424140817</value>
+        <value>42.10172341319872</value>
       </long_rsi_14_series>
       <top_10_buy_liquidations />
       <top_10_sell_liquidations />
-      <timestamp>2025-11-01T20:31:00.339661</timestamp>
+      <timestamp>2025-11-01T20:38:12.022273</timestamp>
     </coin>
     <coin>
       <name>XRP</name>
-      <current_price>2.4995</current_price>
-      <current_ema20>2.500132366036753</current_ema20>
-      <current_macd_value>-0.0010297455381635956</current_macd_value>
-      <current_macd_signal>-0.0007641350247870663</current_macd_signal>
-      <current_rsi>42.961291452623016</current_rsi>
-      <open_interest_latest>200384218.0</open_interest_latest>
-      <open_interest_avg>200384218.0</open_interest_avg>
+      <current_price>2.4993</current_price>
+      <current_ema20>2.4997320833646284</current_ema20>
+      <current_macd_value>-0.0011801239895041782</current_macd_value>
+      <current_macd_signal>-0.0010005416726746352</current_macd_signal>
+      <current_rsi>38.618476313776604</current_rsi>
+      <open_interest_latest>200342236.4</open_interest_latest>
+      <open_interest_avg>200342236.4</open_interest_avg>
       <funding_rate>7.1e-07</funding_rate>
       <intraday_prices>
-        <value>2.5026</value>
-        <value>2.5015</value>
         <value>2.5025</value>
         <value>2.5001</value>
         <value>2.4989</value>
@@ -369,74 +367,76 @@
         <value>2.4979</value>
         <value>2.4977</value>
         <value>2.4976</value>
-        <value>2.4988</value>
+        <value>2.4978</value>
+        <value>2.4984</value>
+        <value>2.4982</value>
       </intraday_prices>
       <ema_20_series>
-        <value>2.5017582319419502</value>
-        <value>2.5017336384236692</value>
-        <value>2.5018066252404627</value>
-        <value>2.5016440895032757</value>
-        <value>2.501382747645821</value>
-        <value>2.5011653431081236</value>
-        <value>2.500854358050207</value>
-        <value>2.5005539429978065</value>
-        <value>2.5002726150932535</value>
-        <value>2.500132366036753</value>
+        <value>2.5018336709354636</value>
+        <value>2.5016685594178005</value>
+        <value>2.5014048870922956</value>
+        <value>2.5011853740358863</value>
+        <value>2.5008724812705636</value>
+        <value>2.5005703401971764</value>
+        <value>2.500287450654588</value>
+        <value>2.5000505505922463</value>
+        <value>2.499893355297747</value>
+        <value>2.4997320833646284</value>
       </ema_20_series>
       <macd_value_series>
-        <value>-0.00010051197894656028</value>
-        <value>-0.0001253923642745569</value>
-        <value>-6.368449107840846e-05</value>
-        <value>-0.00020606510904652708</value>
-        <value>-0.0004109950506561155</value>
-        <value>-0.0005509145769813095</value>
-        <value>-0.0007499864044211435</value>
-        <value>-0.0009133619227355005</value>
-        <value>-0.0010389312100445025</value>
-        <value>-0.0010297455381635956</value>
+        <value>-0.0001957178625482392</value>
+        <value>-0.0003313235568134232</value>
+        <value>-0.0005295180630691121</value>
+        <value>-0.0006628098493028922</value>
+        <value>-0.000855413843083408</value>
+        <value>-0.001012520518061777</value>
+        <value>-0.0011320483059442665</value>
+        <value>-0.001196840181853176</value>
+        <value>-0.001186100595378825</value>
+        <value>-0.0011801239895041782</value>
       </macd_value_series>
       <macd_signal_series>
-        <value>-0.0008083861971797035</value>
-        <value>-0.0006717874305986742</value>
-        <value>-0.000550166842694621</value>
-        <value>-0.00048134649596500226</value>
-        <value>-0.0004672762069032249</value>
-        <value>-0.0004840038809188418</value>
-        <value>-0.0005372003856193022</value>
-        <value>-0.0006124326930425419</value>
-        <value>-0.000697732396442934</value>
-        <value>-0.0007641350247870663</value>
+        <value>-0.0007341810402504883</value>
+        <value>-0.0006536095435630753</value>
+        <value>-0.0006287912474642826</value>
+        <value>-0.0006355949678320046</value>
+        <value>-0.0006795587428822852</value>
+        <value>-0.0007461510979181836</value>
+        <value>-0.0008233305395234002</value>
+        <value>-0.0008980324679893554</value>
+        <value>-0.0009556460934672493</value>
+        <value>-0.0010005416726746352</value>
       </macd_signal_series>
       <rsi_7_series>
-        <value>55.18439990117285</value>
-        <value>48.18716814544687</value>
-        <value>54.3290827361238</value>
-        <value>40.79025891887228</value>
-        <value>35.613270261093824</value>
-        <value>37.163960644888135</value>
-        <value>31.802448180686206</value>
-        <value>30.93467460809864</value>
-        <value>30.450000341253208</value>
-        <value>42.961291452623016</value>
+        <value>54.30299768092388</value>
+        <value>40.777927269785785</value>
+        <value>35.6049257233653</value>
+        <value>37.155108757715986</value>
+        <value>31.796968394916703</value>
+        <value>30.929674210733555</value>
+        <value>30.445259643083794</value>
+        <value>32.89746895092207</value>
+        <value>40.268107616795696</value>
+        <value>38.618476313776604</value>
       </rsi_7_series>
       <rsi_14_series>
-        <value>52.59012006497217</value>
-        <value>49.464215234365746</value>
-        <value>52.24327643601521</value>
-        <value>45.741848761184066</value>
-        <value>42.869225612115045</value>
-        <value>43.50602191370171</value>
-        <value>40.5831354065374</value>
-        <value>40.099591450734195</value>
-        <value>39.843963941683</value>
-        <value>44.422557838150205</value>
+        <value>52.02679948065557</value>
+        <value>45.62336384226328</value>
+        <value>42.78767046760857</value>
+        <value>43.418884872092164</value>
+        <value>40.529567972741695</value>
+        <value>40.05119631788514</value>
+        <value>39.79825939549958</value>
+        <value>40.60615061756362</value>
+        <value>43.07422765285548</value>
+        <value>42.44113445044852</value>
       </rsi_14_series>
-      <long_term_ema_20>2.520808979042726</long_term_ema_20>
-      <long_term_ema_50>2.533247172664942</long_term_ema_50>
+      <long_term_ema_20>2.520751836185583</long_term_ema_20>
+      <long_term_ema_50>2.5332236432531774</long_term_ema_50>
       <atr_3_period>0.027137130402790744</atr_3_period>
       <atr_14_period>0.04800703410072705</atr_14_period>
-      <current_volume>45433058.0</current_volume>
-      <avg_volume>101630125.89999999</avg_volume>
+      <current_volume>46049796.5</current_volume>
+      <avg_volume>101674178.64999999</avg_volume>
       <long_macd_series>
         <value>-0.044688552487771815</value>
         <value>-0.04394174689629482</value>
@@ -447,7 +447,7 @@
         <value>-0.03613188022041047</value>
         <value>-0.04714008414417448</value>
         <value>-0.05269803872679013</value>
-        <value>-0.03966515153130157</value>
+        <value>-0.03971301477916489</value>
       </long_macd_series>
       <long_rsi_14_series>
         <value>36.33062793677919</value>
@@ -459,25 +459,23 @@
         <value>45.01928749716357</value>
         <value>40.574850299401184</value>
         <value>40.1158580738595</value>
-        <value>44.10828025477706</value>
+        <value>44.038155802861674</value>
       </long_rsi_14_series>
       <top_10_buy_liquidations />
       <top_10_sell_liquidations />
-      <timestamp>2025-11-01T20:31:03.119987</timestamp>
+      <timestamp>2025-11-01T20:38:14.796630</timestamp>
     </coin>
     <coin>
       <name>DOGE</name>
-      <current_price>0.18706</current_price>
-      <current_ema20>0.1869308421186095</current_ema20>
-      <current_macd_value>1.5474853550134782e-05</current_macd_value>
-      <current_macd_signal>1.673045189527184e-05</current_macd_signal>
-      <current_rsi>54.49359160159697</current_rsi>
-      <open_interest_latest>1476443921</open_interest_latest>
-      <open_interest_avg>1476443921</open_interest_avg>
+      <current_price>0.18695</current_price>
+      <current_ema20>0.1869087131220416</current_ema20>
+      <current_macd_value>-3.0562955968815864e-06</current_macd_value>
+      <current_macd_signal>7.715494158625892e-06</current_macd_signal>
+      <current_rsi>46.12537729466532</current_rsi>
+      <open_interest_latest>1476527908</open_interest_latest>
+      <open_interest_avg>1476527908</open_interest_avg>
       <funding_rate>9.233e-05</funding_rate>
       <intraday_prices>
-        <value>0.18681</value>
-        <value>0.18675</value>
         <value>0.18693</value>
         <value>0.18698</value>
         <value>0.18698</value>
@@ -485,74 +483,76 @@
         <value>0.18686</value>
         <value>0.18694</value>
         <value>0.18691</value>
-        <value>0.18698</value>
+        <value>0.18681</value>
+        <value>0.1869</value>
+        <value>0.18687</value>
       </intraday_prices>
       <ema_20_series>
-        <value>0.18692296019027368</value>
-        <value>0.1869064877912</value>
-        <value>0.18690872704918096</value>
-        <value>0.18691551494925895</value>
-        <value>0.18692165638266287</value>
-        <value>0.18693292720336163</value>
-        <value>0.18692598175542244</value>
-        <value>0.1869273168263346</value>
-        <value>0.1869256676047789</value>
-        <value>0.1869308421186095</value>
+        <value>0.18690768466590688</value>
+        <value>0.1869145718405824</value>
+        <value>0.18692080309386028</value>
+        <value>0.1869321551801593</value>
+        <value>0.18692528325823937</value>
+        <value>0.18692668485269276</value>
+        <value>0.18692509581910297</value>
+        <value>0.18691413431252174</value>
+        <value>0.18691278818751966</value>
+        <value>0.1869087131220416</value>
       </ema_20_series>
       <macd_value_series>
-        <value>2.319969975447811e-05</value>
-        <value>6.874300828907387e-06</value>
-        <value>8.364380863518095e-06</value>
-        <value>1.3425105895054079e-05</value>
-        <value>1.7237068744319073e-05</value>
-        <value>2.4813540278695312e-05</value>
-        <value>1.6107772503298756e-05</value>
-        <value>1.548521629746169e-05</value>
-        <value>1.2427826491800964e-05</value>
-        <value>1.5474853550134782e-05</value>
+        <value>7.302024185917855e-06</value>
+        <value>1.240995090495689e-05</value>
+        <value>1.6270463851164596e-05</value>
+        <value>2.3895988651184696e-05</value>
+        <value>1.5239109350306812e-05</value>
+        <value>1.466475537556522e-05</value>
+        <value>1.165448083267906e-05</value>
+        <value>1.1859810530867598e-06</value>
+        <value>1.5013671236796533e-07</value>
+        <value>-3.0562955968815864e-06</value>
       </macd_value_series>
       <macd_signal_series>
-        <value>2.6581872899010223e-05</value>
-        <value>2.2640358484989655e-05</value>
-        <value>1.9785162960695344e-05</value>
-        <value>1.851315154756709e-05</value>
-        <value>1.8257934986917487e-05</value>
-        <value>1.9569056045273052e-05</value>
-        <value>1.8876799336878192e-05</value>
-        <value>1.819848272899489e-05</value>
-        <value>1.7044351481556105e-05</value>
-        <value>1.673045189527184e-05</value>
+        <value>1.7924460631064965e-05</value>
+        <value>1.682155868584335e-05</value>
+        <value>1.67113397189076e-05</value>
+        <value>1.814826950536302e-05</value>
+        <value>1.756643747435178e-05</value>
+        <value>1.6986101054594468e-05</value>
+        <value>1.5919777010211385e-05</value>
+        <value>1.2973017818786461e-05</value>
+        <value>1.0408441597502763e-05</value>
+        <value>7.715494158625892e-06</value>
       </macd_signal_series>
       <rsi_7_series>
-        <value>38.273489768880694</value>
-        <value>34.360148977140284</value>
-        <value>51.659470031262614</value>
-        <value>55.46332178332626</value>
-        <value>55.46332178332626</value>
-        <value>60.5354906961653</value>
-        <value>43.28273064190141</value>
-        <value>50.585201250792636</value>
-        <value>47.88773007334705</value>
-        <value>54.49359160159697</value>
+        <value>51.61026422346631</value>
+        <value>55.41593653588076</value>
+        <value>55.415936535880746</value>
+        <value>60.49107792831753</value>
+        <value>43.25686133840511</value>
+        <value>50.560489532626086</value>
+        <value>47.86509534396976</value>
+        <value>39.64581329395888</value>
+        <value>48.865537855501564</value>
+        <value>46.12537729466532</value>
       </rsi_7_series>
       <rsi_14_series>
-        <value>45.69824162276726</value>
-        <value>43.521714802085945</value>
-        <value>51.05341265165214</value>
-        <value>52.93111803779005</value>
-        <value>52.93111803779005</value>
-        <value>55.316734128579334</value>
-        <value>47.53331042783972</value>
-        <value>50.84381702873213</value>
-        <value>49.58042823639239</value>
-        <value>52.543589113290615</value>
+        <value>50.55875862043837</value>
+        <value>52.43112046667401</value>
+        <value>52.431120466673995</value>
+        <value>54.812712148028865</value>
+        <value>47.181068353221725</value>
+        <value>50.481041936222496</value>
+        <value>49.238693765260656</value>
+        <value>45.24183624511816</value>
+        <value>49.23573830510677</value>
+        <value>47.97951226375023</value>
       </rsi_14_series>
-      <long_term_ema_20>0.1881532944566426</long_term_ema_20>
-      <long_term_ema_50>0.19193799738245934</long_term_ema_50>
+      <long_term_ema_20>0.1881428182661664</long_term_ema_20>
+      <long_term_ema_50>0.19193368365696917</long_term_ema_50>
       <atr_3_period>0.0019209996701165697</atr_3_period>
       <atr_14_period>0.00363611188515866</atr_14_period>
-      <current_volume>271723713.0</current_volume>
-      <avg_volume>783957530.5714285</avg_volume>
+      <current_volume>274859035.0</current_volume>
+      <avg_volume>784181482.1428572</avg_volume>
       <long_macd_series>
         <value>-0.005697555185965153</value>
         <value>-0.005800228504638627</value>
@@ -563,7 +563,7 @@
         <value>-0.003630707133287503</value>
         <value>-0.004341066292417234</value>
         <value>-0.004279735119017053</value>
-        <value>-0.003030142005277986</value>
+        <value>-0.003038916934052921</value>
       </long_macd_series>
       <long_rsi_14_series>
         <value>37.962962962962955</value>
@@ -575,25 +575,23 @@
         <value>41.72932330827068</value>
         <value>39.11764705882355</value>
         <value>41.1073825503356</value>
-        <value>48.361626529806564</value>
+        <value>48.152515723270454</value>
       </long_rsi_14_series>
       <top_10_buy_liquidations />
       <top_10_sell_liquidations />
-      <timestamp>2025-11-01T20:31:05.728214</timestamp>
+      <timestamp>2025-11-01T20:38:17.404612</timestamp>
     </coin>
     <coin>
       <name>SOL</name>
-      <current_price>185.82</current_price>
-      <current_ema20>185.54360446262095</current_ema20>
-      <current_macd_value>0.09557485088086537</current_macd_value>
-      <current_macd_signal>0.05889705920179441</current_macd_signal>
-      <current_rsi>62.795698335403635</current_rsi>
-      <open_interest_latest>8016194.95</open_interest_latest>
-      <open_interest_avg>8016194.95</open_interest_avg>
+      <current_price>185.59</current_price>
+      <current_ema20>185.53314089785601</current_ema20>
+      <current_macd_value>0.06877618355642312</current_macd_value>
+      <current_macd_signal>0.0650814805604306</current_macd_signal>
+      <current_rsi>44.51610620400173</current_rsi>
+      <open_interest_latest>8017928.40</open_interest_latest>
+      <open_interest_avg>8017928.40</open_interest_avg>
       <funding_rate>-5.041e-05</funding_rate>
       <intraday_prices>
-        <value>185.4</value>
-        <value>185.36</value>
         <value>185.53</value>
         <value>185.53</value>
         <value>185.62</value>
@@ -601,74 +599,76 @@
         <value>185.71</value>
         <value>185.74</value>
         <value>185.69</value>
-        <value>185.72</value>
+        <value>185.54</value>
+        <value>185.63</value>
+        <value>185.51</value>
       </intraday_prices>
       <ema_20_series>
-        <value>185.37300824357487</value>
-        <value>185.37176936323442</value>
-        <value>185.3868389476883</value>
-        <value>185.40047333362273</value>
-        <value>185.42138063518246</value>
-        <value>185.4593443842127</value>
-        <value>185.483216347621</value>
-        <value>185.50767193356188</value>
-        <value>185.5250365113179</value>
-        <value>185.54360446262095</value>
+        <value>185.38517842461863</value>
+        <value>185.39897095560733</value>
+        <value>185.42002134078757</value>
+        <value>185.45811454642686</value>
+        <value>185.48210363724334</value>
+        <value>185.50666519560113</value>
+        <value>185.52412565316294</value>
+        <value>185.52563749571885</value>
+        <value>185.53557678184086</value>
+        <value>185.53314089785601</value>
       </ema_20_series>
       <macd_value_series>
-        <value>0.01751862153250272</value>
-        <value>0.013376129165663997</value>
-        <value>0.023539405753865594</value>
-        <value>0.031233831505261378</value>
-        <value>0.044085773828953734</value>
-        <value>0.06960697338365662</value>
-        <value>0.08003404456314911</value>
-        <value>0.08968449583412053</value>
-        <value>0.09223474117936803</value>
-        <value>0.09557485088086537</value>
+        <value>0.02816884544913023</value>
+        <value>0.0355084401500676</value>
+        <value>0.048033667449686845</value>
+        <value>0.07325390345422989</value>
+        <value>0.08340361652383876</value>
+        <value>0.09279836475187153</value>
+        <value>0.09511278726955652</value>
+        <value>0.08387636289143074</value>
+        <value>0.0812965276904265</value>
+        <value>0.06877618355642312</value>
       </macd_value_series>
       <macd_signal_series>
-        <value>-0.04705544326604201</value>
-        <value>-0.034969128779700806</value>
-        <value>-0.023267421872987526</value>
-        <value>-0.012367171197337745</value>
-        <value>-0.0010765821920794474</value>
-        <value>0.013060128923067767</value>
-        <value>0.026454912051084037</value>
-        <value>0.039100828807691335</value>
-        <value>0.04972761128202667</value>
-        <value>0.05889705920179441</value>
+        <value>-0.016925213708424182</value>
+        <value>-0.006438482936725824</value>
+        <value>0.00445594714055671</value>
+        <value>0.018215538403291348</value>
+        <value>0.03125315402740083</value>
+        <value>0.04356219617229497</value>
+        <value>0.05387231439174728</value>
+        <value>0.05987312409168397</value>
+        <value>0.06415780481143248</value>
+        <value>0.0650814805604306</value>
       </macd_signal_series>
       <rsi_7_series>
-        <value>50.56273914940286</value>
-        <value>46.99617816080929</value>
-        <value>60.73056872168867</value>
-        <value>60.73056872168867</value>
-        <value>66.90925230619278</value>
-        <value>76.49672282788316</value>
-        <value>64.50456370222561</value>
-        <value>66.19097150577682</value>
-        <value>60.59326672157054</value>
-        <value>62.795698335403635</value>
+        <value>60.603800573278264</value>
+        <value>60.603800573278264</value>
+        <value>66.79748615579526</value>
+        <value>76.41188823342954</value>
+        <value>64.43875223504435</value>
+        <value>66.12751780489783</value>
+        <value>60.537509364997454</value>
+        <value>46.715792124866205</value>
+        <value>54.05827281971052</value>
+        <value>44.51610620400173</value>
       </rsi_7_series>
       <rsi_14_series>
-        <value>50.53676469146414</value>
-        <value>49.03995024439751</value>
-        <value>55.12345137371044</value>
-        <value>55.12345137371044</value>
-        <value>58.18813891801311</value>
-        <value>64.06164146227584</value>
-        <value>59.14087471850963</value>
-        <value>60.04233799305718</value>
-        <value>57.75524493155625</value>
-        <value>58.77003256691455</value>
+        <value>53.84424424216087</value>
+        <value>53.84424424216087</value>
+        <value>56.95072023033115</value>
+        <value>62.922748287739196</value>
+        <value>58.14507693774107</value>
+        <value>59.05811663122608</value>
+        <value>56.83287996366151</value>
+        <value>50.66532048122853</value>
+        <value>53.89804681972371</value>
+        <value>49.26293385563278</value>
       </rsi_14_series>
-      <long_term_ema_20>188.5660215682834</long_term_ema_20>
-      <long_term_ema_50>191.10439646469183</long_term_ema_50>
+      <long_term_ema_20>188.545069187331</long_term_ema_20>
+      <long_term_ema_50>191.09576901371145</long_term_ema_50>
       <atr_3_period>2.5279114667982463</atr_3_period>
       <atr_14_period>3.9709051694110817</atr_14_period>
-      <current_volume>1669248.9</current_volume>
-      <avg_volume>3695463.1285714284</avg_volume>
+      <current_volume>1697637.29</current_volume>
+      <avg_volume>3697490.8707142854</avg_volume>
       <long_macd_series>
         <value>-4.330476924908027</value>
         <value>-4.054357748151233</value>
@@ -679,7 +679,7 @@
         <value>-3.7311098227878574</value>
         <value>-4.607806504654718</value>
         <value>-4.712731446252519</value>
-        <value>-3.460123462085704</value>
+        <value>-3.477673319635585</value>
       </long_macd_series>
       <long_rsi_14_series>
         <value>38.94736842105261</value>
@@ -691,11 +691,11 @@
         <value>38.37543053960965</value>
         <value>32.948157401624016</value>
         <value>34.76853350598901</value>
-        <value>39.05454545454544</value>
+        <value>38.74458874458874</value>
       </long_rsi_14_series>
       <top_10_buy_liquidations />
       <top_10_sell_liquidations />
-      <timestamp>2025-11-01T20:31:08.363941</timestamp>
+      <timestamp>2025-11-01T20:38:20.048180</timestamp>
     </coin>
   </state_of_market>
   <agents>
