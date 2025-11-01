@@ -39,7 +39,7 @@ Key risk rules:
 - Suggest stop-loss: 2-5% away from entry, based on volatility (e.g., ATR).
 - If rules violated, output HOLD with reason.
 
-Output ONLY valid JSON: {"action": "buy/sell/hold", "symbol": "<coin symbol if action is buy/sell>", "quantity": float, "stop_loss": float (price), "confidence": float 0-1, "reason": "brief explanation including risk calc"}
+Output ONLY valid JSON: {"action": "buy/sell/hold", "symbol": "<coin symbol if action is buy/sell>", "quantity": float, "stop_loss": float (price), "confidence": float 0-1, "reason": "brief explanation including risk calc", "invalidation_condition": "string"}
 
 Example: With $10k capital, 3% stop distance, 5x leverage: quantity = (10000 * 0.02) / (0.03 * 5) = ~1333 units worth.
 
@@ -66,12 +66,12 @@ Only respond with valid JSON. Do not include any other text or explanation.
 }'''
 
 extracted_json = extract_json_from_response(response_content)
-print("Extracted JSON:")
-print(extracted_json)
+logger.info("Extracted JSON:")
+logger.info(extracted_json)
 
 try:
     parsed = json.loads(extracted_json)
-    print("\nParsed successfully:")
-    print(json.dumps(parsed, indent=2))
+    logger.info("\nParsed successfully:")
+    logger.info(json.dumps(parsed, indent=2))
 except json.JSONDecodeError as e:
-    print(f"\nFailed to parse JSON: {e}")
+    logger.info(f"\nFailed to parse JSON: {e}")

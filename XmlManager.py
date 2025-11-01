@@ -207,16 +207,30 @@ class TradingXMLManager:
         self.update_account_summary(kind=kind, total_return=new_return)
 
     def clear_all_trades(self, kind=None):
-        """Clear all active and closed trades from XML for a specific agent kind"""
-        agent_elem = self.get_agent_section(kind)
+        """Clear all active and closed trades from XML for a specific agent kind or all agents if kind=None"""
+        if kind is None:
+            # Clear trades for all agents
+            agents_elem = self.root.find("agents")
+            if agents_elem is not None:
+                for agent_elem in agents_elem.findall("agent"):
+                    active_trades = agent_elem.find("active_trades")
+                    if active_trades is not None:
+                        active_trades.clear()
 
-        active_trades = agent_elem.find("active_trades")
-        if active_trades is not None:
-            active_trades.clear()
+                    closed_trades = agent_elem.find("closed_trades")
+                    if closed_trades is not None:
+                        closed_trades.clear()
+        else:
+            # Clear trades for specific agent kind
+            agent_elem = self.get_agent_section(kind)
 
-        closed_trades = agent_elem.find("closed_trades")
-        if closed_trades is not None:
-            closed_trades.clear()
+            active_trades = agent_elem.find("active_trades")
+            if active_trades is not None:
+                active_trades.clear()
+
+            closed_trades = agent_elem.find("closed_trades")
+            if closed_trades is not None:
+                closed_trades.clear()
 
         # Ensure state_of_market section is preserved
         state_of_market = self.get_state_of_market_section()

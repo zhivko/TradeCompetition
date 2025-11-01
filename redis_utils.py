@@ -209,6 +209,84 @@ async def get_oldest_cached_timestamp(symbol: str, resolution: str) -> Optional[
         logger.error(f"Error finding oldest cached timestamp: {e}")
         return None
 
+async def get_cached_klines_individual(symbol: str, resolution: str, timestamp: int) -> Optional[Dict[str, Any]]:
+    """Get a single cached kline for the specified timestamp.
+
+    Args:
+        symbol: Trading symbol (e.g., 'BTCUSDT')
+        resolution: Timeframe resolution (e.g., '5m', '1h')
+        timestamp: Unix timestamp in seconds
+
+    Returns:
+        Dict containing OHLCV data for the timestamp, or None if not found
+    """
+    try:
+        redis = await get_redis_connection()
+
+        # Get the individual kline key
+        individual_key = get_redis_key(symbol, resolution, timestamp)
+
+        # Retrieve the data
+        data_str = await redis.get(individual_key)
+        if not data_str:
+            return None
+
+        # Parse the JSON data
+        if isinstance(data_str, bytes):
+            data_str = data_str.decode('utf-8')
+
+        kline_data = json.loads(data_str)
+        return kline_data
+
+    except Exception as e:
+        logger.error(f"Error getting cached kline for {symbol} {resolution} at {timestamp}: {e}")
+        return None
+
+async def get_cached_klines_individual_range(symbol: str, resolution: str, start_ts: int, end_ts: int) -> list[Dict[str, Any]]:
+    """Get all cached klines in the specified timestamp range.
+
+    Args:
+        symbol: Trading symbol (e.g., 'BTCUSDT')
+        resolution: Timeframe resolution (e.g., '5m', '1h')
+        start_ts: Start Unix timestamp in seconds
+        end_ts: End Unix timestamp in seconds
+
+    Returns:
+        List of dicts containing OHLCV data for timestamps in the range
+    """
+    try:
+        redis = await get_redis_connection()
+
+        klines_data = []
+        timeframe_seconds = get_timeframe_seconds(resolution)
+
+        # Iterate through timestamps in the range
+        current_ts = start_ts
+        while current_ts <= end_ts:
+            # Get the individual kline key
+            individual_key = get_redis_key(symbol, resolution, current_ts)
+
+            # Retrieve the data
+            data_str = await redis.get(individual_key)
+            if data_str:
+                # Parse the JSON data
+                if isinstance(data_str, bytes):
+                    data_str = data_str.decode('utf-8')
+
+                kline_data = json.loads(data_str)
+                klines_data.append(kline_data)
+
+            # Move to next timestamp
+            current_ts += timeframe_seconds
+
+        logger.info(f"Found {len(klines_data)} cached individual klines for {symbol} {resolution} between {start_ts} and {end_ts}")
+        return klines_data
+
+    except Exception as e:
+        logger.error(f"Error getting cached klines range for {symbol} {resolution} from {start_ts} to {end_ts}: {e}")
+        return []
+
+
 async def get_cached_klines(symbol: str, resolution: str, start_ts: int, end_ts: int) -> list[Dict[str, Any]]:
     # Defensive check: if timestamps are None, return empty list as we can't proceed with None values
     if start_ts is None or end_ts is None:
@@ -242,6 +320,8 @@ async def get_cached_klines(symbol: str, resolution: str, start_ts: int, end_ts:
             if start_ts > 1e10:  # Likely milliseconds
                 logger.warning(f"[TIMESTAMP DEBUG] start_ts {start_ts} appears to be in MILLISECONDS (should be seconds for Redis)")
                 logger.info(f"  Converting to seconds: {start_ts // 1000}")
+                start_ts = start_ts // 1000  # Convert milliseconds to seconds
+                end_ts = end_ts // 1000      # Convert milliseconds to seconds
             elif start_ts > 1e8:  # Likely seconds
                 logger.info(f"[TIMESTAMP DEBUG] start_ts {start_ts} appears to be in SECONDS (correct for Redis)")
             else:
@@ -260,15 +340,17 @@ async def get_cached_klines(symbol: str, resolution: str, start_ts: int, end_ts:
             logger.warning(f"No data returned from zrangebyscore for key '{sorted_set_key}' with range [{start_ts}, {end_ts}]. Checking if key exists and has members...")
             key_exists = await redis.exists(sorted_set_key)
             cardinality = await redis.zcard(sorted_set_key) if key_exists else 0
-            logger.info(f"Key '{sorted_set_key}': Exists? {key_exists}, Cardinality: {cardinality}")
+            #logger.info(f"Key '{sorted_set_key}': Exists? {key_exists}, Cardinality: {cardinality}")
             if key_exists and cardinality > 0:
-                logger.info(f"Fetching all members from '{sorted_set_key}' to inspect scores, as zrangebyscore returned empty for range [{start_ts}, {end_ts}].")
+                #logger.info(f"Fetching all members from '{sorted_set_key}' to inspect scores, as zrangebyscore returned empty for range [{start_ts}, {end_ts}].")
                 all_members_with_scores = await redis.zrange(sorted_set_key, 0, -1, withscores=True)
                 if all_members_with_scores:
-                    logger.info("All members in '{sorted_set_key}' (first 5 shown if many):")
+                    #logger.info("All members in '{sorted_set_key}' (first 5 shown if many):")
                     for i, (member, score) in enumerate(all_members_with_scores[:5]):
-                        logger.info(f"  Member: {str(member)[:100]}..., Score: {score} (datetime: {datetime.fromtimestamp(int(score), timezone.utc) if isinstance(score, (int, float)) else 'N/A'})")
-                    if len(all_members_with_scores) > 5: logger.info(f"  ... and {len(all_members_with_scores) - 5} more members.")
+                        #logger.info(f"  Member: {str(member)[:100]}..., Score: {score} (datetime: {datetime.fromtimestamp(int(score), timezone.utc) if isinstance(score, (int, float)) else 'N/A'})")
+                        pass
+                    if len(all_members_with_scores) > 5:
+                        logger.info(f"  ... and {len(all_members_with_scores) - 5} more members.")
                 else:
                     logger.warning(f"'{sorted_set_key}' exists with cardinality {cardinality}, but zrange returned no members. This is unexpected.")
 
@@ -310,7 +392,9 @@ async def get_cached_klines(symbol: str, resolution: str, start_ts: int, end_ts:
                 logger.error(f"Failed to parse JSON: {e}. Raw data: {data_item}")
                 continue
 
-        logger.info(f"Found {len(cached_data)} cached klines for {symbol} {resolution} between {start_ts} and {end_ts}")
+        start_dt = datetime.fromtimestamp(start_ts, timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+        end_dt = datetime.fromtimestamp(end_ts, timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+        logger.info(f"Found {len(cached_data)} cached klines for {symbol} {resolution} between {start_ts} ({start_dt}) and {end_ts} ({end_dt})")
 
         # DATA GAP ANALYSIS: Check for gaps in the data
         if cached_data:
@@ -1438,20 +1522,20 @@ async def download_btc_dominance_from_tvdatafeed() -> str:
         script = '''
 from tvDatafeed import TvDatafeed, Interval
 
-print("📡 Connecting to TradingView...")
+logger.info("📡 Connecting to TradingView...")
 tv = TvDatafeed()
 
-print("📊 Downloading BTC dominance data...")
+logger.info("📊 Downloading BTC dominance data...")
 data = tv.get_hist('BTC.D', exchange='CRYPTOCAP', interval=Interval.daily, n_bars=500)
 
-print(f"✅ Downloaded {len(data)} data points")
-print(f"Date range: {data.index[0]} to {data.index[-1]}")
-print(f"Sample data:\\n{data.head()}")
+logger.info(f"✅ Downloaded {len(data)} data points")
+logger.info(f"Date range: {data.index[0]} to {data.index[-1]}")
+logger.info(f"Sample data:\\n{data.head()}")
 
-print("💾 Saving to btc_dominance_tvdatafeed.csv...")
+logger.info("💾 Saving to btc_dominance_tvdatafeed.csv...")
 data.to_csv('btc_dominance_tvdatafeed.csv')
 
-print("✨ SUCCESS: BTC dominance data saved!")
+logger.info("✨ SUCCESS: BTC dominance data saved!")
         '''
 
         # Execute the script (we need tvDatafeed installed)

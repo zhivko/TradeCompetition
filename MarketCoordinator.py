@@ -6,12 +6,16 @@ from datetime import datetime, timezone
 from typing import Dict, List
 import os
 import traceback
+import logging
 from dotenv import load_dotenv
+import requests
 
 # Import shared XML manager
 from XmlManager import TradingXMLManager
 from Agent import TradeXMLManager
 from BinanceLiquidationClient import BinanceLiquidationClient
+
+from logging_config import logger
 
 # Import numpy for array operations
 import numpy as np
@@ -22,10 +26,10 @@ try:
     TALIB_AVAILABLE = True
 except ImportError:
     TALIB_AVAILABLE = False
-    print("Warning: ta-lib not available, using custom calculations")
+    logger.info("Warning: ta-lib not available, using custom calculations")
 
 # Import Redis utilities for simulation mode
-from redis_utils import get_cached_klines, get_cached_open_interest, get_oldest_cached_timestamp
+from redis_utils import get_cached_klines, get_cached_open_interest, get_oldest_cached_timestamp, get_cached_klines_individual_range
 
 
 def calculate_ema(prices: List[float], period: int) -> float:
@@ -172,81 +176,69 @@ class BinanceMarketDataFetcher:
             await self.futures_session.close()
     
     async def get_ticker_price(self, symbol: str) -> float:
-        """Get current ticker price for a symbol"""
-        endpoint = f"{self.base_url}/api/v3/ticker/price"
-        params = {"symbol": symbol}
+        """Get current ticker price for a symbol (using spot API)"""
+        # Set the API endpoint for the coin1/coin2 pair
+        api_endpoint = 'https://api.binance.com/api/v3/ticker/price?symbol=' + symbol
+        response = requests.get(api_endpoint)
 
         try:
-            async with self.spot_session.get(endpoint, params=params) as response:
-                if response.status != 200:
-                    print(f"Error fetching ticker price for {symbol}: {response.status}")
-                    return 0.0
-
-                data = await response.json()
-                return float(data['price'])
+            # Parse the JSON data from the response and extract the current price
+            data = response.json()
+            current_price = float(data['price'])
+            return current_price
         except Exception as e:
-            print(f"Exception fetching ticker price for {symbol}: {e}")
+            logger.info(f"Exception fetching ticker price for {symbol}: {e}")
             return 0.0
     
     async def get_klines(self, symbol: str, interval: str = "3m", limit: int = 10) -> List:
-        """Get kline/candlestick data for a symbol"""
-        # Use spot API for klines since it doesn't require authentication
-        endpoint = f"{self.base_url}/api/v3/klines"
+        """Get kline/candlestick data for a symbol (using futures API)"""
+        # Use futures API for klines to match the trading instruments
+        endpoint = f"{self.futures_url}/fapi/v1/klines"
         params = {
-            "symbol": symbol,  # Use symbol as-is, without adding USDT
+            "symbol": symbol,  # Use symbol as-is (should include USDT)
             "interval": interval,
             "limit": limit
         }
 
         try:
-            async with self.spot_session.get(endpoint, params=params) as response:
-                print(f"DEBUG: Kline request for {symbol} {interval}: status {response.status}")
-                if response.status != 200:
-                    print(f"Error fetching klines for {symbol}: {response.status}")
-                    # Check if the symbol exists by trying ticker price first
-                    try:
-                        async with self.spot_session.get(f"{self.base_url}/api/v3/ticker/price", params={"symbol": f"{symbol}USDT"}) as price_response:
-                            if price_response.status == 200:
-                                price_data = await price_response.json()
-                                print(f"DEBUG: Symbol {symbol}USDT exists, price: {price_data.get('price', 'unknown')}")
-                            else:
-                                print(f"DEBUG: Symbol {symbol}USDT does not exist or is not available: {price_response.status}")
-                                # Try without USDT suffix for spot pairs
-                                try:
-                                    async with self.spot_session.get(f"{self.base_url}/api/v3/ticker/price", params={"symbol": symbol}) as alt_response:
-                                        if alt_response.status == 200:
-                                            alt_data = await alt_response.json()
-                                            print(f"DEBUG: Symbol {symbol} exists without USDT, price: {alt_data.get('price', 'unknown')}")
-                                        else:
-                                            print(f"DEBUG: Symbol {symbol} also does not exist: {alt_response.status}")
-                                except Exception as alt_e:
-                                    print(f"DEBUG: Error checking alternative symbol: {alt_e}")
-                    except Exception as price_e:
-                        print(f"DEBUG: Error checking symbol existence: {price_e}")
-                    return []
+            response = requests.get(endpoint, params=params)
+            logger.info(f"DEBUG: Kline request for {symbol} {interval}: status {response.status_code}")
+            if response.status_code != 200:
+                logger.info(f"Error fetching klines for {symbol}: {response.status_code}")
+                # Check if the symbol exists by trying ticker price first
+                try:
+                    price_response = requests.get(f"{self.futures_url}/fapi/v1/ticker/price", params={"symbol": symbol})
+                    if price_response.status_code == 200:
+                        price_data = price_response.json()
+                        logger.info(f"DEBUG: Symbol {symbol} exists, price: {price_data.get('price', 'unknown')}")
+                    else:
+                        logger.info(f"DEBUG: Symbol {symbol} does not exist or is not available: {price_response.status_code}")
+                except Exception as price_e:
+                    logger.info(f"DEBUG: Error checking symbol existence: {price_e}")
+                return []
 
-                data = await response.json()
-                print(f"DEBUG: Received {len(data) if data else 0} kline records for {symbol} {interval}")
-                # Return full kline data: [open, high, low, close, volume, ...]
-                return [[float(kline[1]), float(kline[2]), float(kline[3]), float(kline[4]), float(kline[5])] for kline in data]  # [1]=open, [2]=high, [3]=low, [4]=close, [5]=volume
+            data = response.json()
+            logger.info(f"DEBUG: Received {len(data) if data else 0} kline records for {symbol} {interval}")
+            # Return full kline data: [open, high, low, close, volume, ...]
+            return [[float(kline[1]), float(kline[2]), float(kline[3]), float(kline[4]), float(kline[5])] for kline in data]  # [1]=open, [2]=high, [3]=low, [4]=close, [5]=volume
         except Exception as e:
-            print(f"Exception fetching klines for {symbol}: {e}")
+            logger.info(f"Exception fetching klines for {symbol}: {e}")
             return []
     
     async def get_24hr_ticker(self, symbol: str) -> Dict:
-        """Get 24hr ticker data for a symbol"""
-        endpoint = f"{self.base_url}/api/v3/ticker/24hr"
+        """Get 24hr ticker data for a symbol (using futures API)"""
+        endpoint = f"{self.futures_url}/fapi/v1/ticker/24hr"
         params = {"symbol": symbol}
 
         try:
-            async with self.spot_session.get(endpoint, params=params) as response:
-                if response.status != 200:
-                    print(f"Error fetching 24hr ticker for {symbol}: {response.status}")
-                    return {}
+            response = requests.get(endpoint, params=params)
+            if response.status_code != 200:
+                logger.info(f"Error fetching 24hr ticker for {symbol}: {response.status_code}")
+                return {}
 
-                return await response.json()
+            return response.json()
         except Exception as e:
-            print(f"Exception fetching 24hr ticker for {symbol}: {e}")
+            logger.info(f"Exception fetching 24hr ticker for {symbol}: {e}")
             return {}
     
     async def get_open_interest(self, symbol: str) -> Dict:
@@ -256,19 +248,19 @@ class BinanceMarketDataFetcher:
         params = {"symbol": f"{symbol}USDT"}  # Assuming USDT futures
 
         try:
-            async with self.futures_session.get(endpoint, params=params) as response:
-                if response.status != 200:
-                    print(f"Error fetching open interest for {symbol}: {response.status}")
-                    # Return default values when API call fails
-                    return {
-                        "symbol": f"{symbol}USDT",
-                        "openInterest": "0.0",
-                        "time": int(datetime.now().timestamp() * 1000)  # Current timestamp in milliseconds
-                    }
+            response = requests.get(endpoint, params=params)
+            if response.status_code != 200:
+                logger.info(f"Error fetching open interest for {symbol}: {response.status_code}")
+                # Return default values when API call fails
+                return {
+                    "symbol": f"{symbol}USDT",
+                    "openInterest": "0.0",
+                    "time": int(datetime.now().timestamp() * 1000)  # Current timestamp in milliseconds
+                }
 
-                return await response.json()
+            return response.json()
         except Exception as e:
-            print(f"Exception fetching open interest for {symbol}: {e}")
+            logger.info(f"Exception fetching open interest for {symbol}: {e}")
             # Return default values when exception occurs
             return {
                 "symbol": f"{symbol}USDT",
@@ -290,57 +282,57 @@ class BinanceMarketDataFetcher:
         }
 
         try:
-            async with self.futures_session.get(endpoint, params=params) as response:
-                if response.status != 200:
-                    try:
-                        error_data = await response.json()
-                        print(f"Error fetching liquidation orders for {symbol}: {response.status}, Details: {error_data}")
-                    except Exception:
-                        error_text = await response.text()
-                        print(f"Error fetching liquidation orders for {symbol}: {response.status}, Details: {error_text}")
-                    return {"rows": [], "total": 0}
+            response = requests.get(endpoint, params=params)
+            if response.status_code != 200:
+                try:
+                    error_data = response.json()
+                    logger.info(f"Error fetching liquidation orders for {symbol}: {response.status_code}, Details: {error_data}")
+                except Exception:
+                    error_text = response.text
+                    logger.info(f"Error fetching liquidation orders for {symbol}: {response.status_code}, Details: {error_text}")
+                return {"rows": [], "total": 0}
 
-                data = await response.json()
-                if not isinstance(data, list):
-                    print(f"Unexpected response format for {symbol}: {data}")
-                    return {"rows": [], "total": 0}
+            data = response.json()
+            if not isinstance(data, list):
+                logger.info(f"Unexpected response format for {symbol}: {data}")
+                return {"rows": [], "total": 0}
 
-                return {"rows": data, "total": len(data)}
+            return {"rows": data, "total": len(data)}
         except Exception as e:
-            print(f"Exception fetching liquidation orders for {symbol}: {e}")
+            logger.info(f"Exception fetching liquidation orders for {symbol}: {e}")
             return {"rows": [], "total": 0}
     
     async def get_funding_rate(self, symbol: str) -> Dict:
         """Get funding rate data for a symbol (futures)"""
-        # Binance futures API for funding rate - both USDT and USD (coin-margined) 
+        # Binance futures API for funding rate - both USDT and USD (coin-margined)
         funding_rates = {}
-        
+
         # Get USDT-margined funding rate
         usdt_endpoint = f"{self.futures_url}/fapi/v1/fundingRate"
         usdt_params = {"symbol": f"{symbol}USDT"}
 
         try:
-            async with self.futures_session.get(usdt_endpoint, params=usdt_params) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data:  # Check if list is not empty
-                        latest_funding = data[-1]  # Get the most recent funding rate
-                        funding_rates["usdt_funding_rate"] = float(latest_funding.get("fundingRate", 0))
-                        funding_rates["usdt_funding_timestamp"] = int(latest_funding.get("fundingTime", 0))
-                        funding_rates["usdt_next_funding_time"] = int(latest_funding.get("nextFundingTime", 0))
-                    else:
-                        # Default values if no data returned
-                        funding_rates["usdt_funding_rate"] = 0.0
-                        funding_rates["usdt_funding_timestamp"] = 0
-                        funding_rates["usdt_next_funding_time"] = 0
+            response = requests.get(usdt_endpoint, params=usdt_params)
+            if response.status_code == 200:
+                data = response.json()
+                if data:  # Check if list is not empty
+                    latest_funding = data[-1]  # Get the most recent funding rate
+                    funding_rates["usdt_funding_rate"] = float(latest_funding.get("fundingRate", 0))
+                    funding_rates["usdt_funding_timestamp"] = int(latest_funding.get("fundingTime", 0))
+                    funding_rates["usdt_next_funding_time"] = int(latest_funding.get("nextFundingTime", 0))
                 else:
-                    print(f"Error fetching USDT funding rate for {symbol}: {response.status}")
-                    # Default values on error
+                    # Default values if no data returned
                     funding_rates["usdt_funding_rate"] = 0.0
                     funding_rates["usdt_funding_timestamp"] = 0
                     funding_rates["usdt_next_funding_time"] = 0
+            else:
+                logger.info(f"Error fetching USDT funding rate for {symbol}: {response.status_code}")
+                # Default values on error
+                funding_rates["usdt_funding_rate"] = 0.0
+                funding_rates["usdt_funding_timestamp"] = 0
+                funding_rates["usdt_next_funding_time"] = 0
         except Exception as e:
-            print(f"Exception fetching USDT funding rate for {symbol}: {e}")
+            logger.info(f"Exception fetching USDT funding rate for {symbol}: {e}")
             # Default values on exception
             funding_rates["usdt_funding_rate"] = 0.0
             funding_rates["usdt_funding_timestamp"] = 0
@@ -351,30 +343,30 @@ class BinanceMarketDataFetcher:
             usd_endpoint = f"{self.futures_url}/dapi/v1/fundingRate"
             usd_params = {"symbol": f"{symbol}USD_PERP"}  # Coin-margined futures
 
-            async with self.futures_session.get(usd_endpoint, params=usd_params) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if data:  # Check if list is not empty
-                        latest_funding = data[-1]  # Get the most recent funding rate
-                        funding_rates["usd_funding_rate"] = float(latest_funding.get("fundingRate", 0))
-                        funding_rates["usd_funding_timestamp"] = int(latest_funding.get("fundingTime", 0))
-                        funding_rates["usd_next_funding_time"] = int(latest_funding.get("nextFundingTime", 0))
-                    else:
-                        # Default values if no data returned
-                        funding_rates["usd_funding_rate"] = 0.0
-                        funding_rates["usd_funding_timestamp"] = 0
-                        funding_rates["usd_next_funding_time"] = 0
+            response = requests.get(usd_endpoint, params=usd_params)
+            if response.status_code == 200:
+                data = response.json()
+                if data:  # Check if list is not empty
+                    latest_funding = data[-1]  # Get the most recent funding rate
+                    funding_rates["usd_funding_rate"] = float(latest_funding.get("fundingRate", 0))
+                    funding_rates["usd_funding_timestamp"] = int(latest_funding.get("fundingTime", 0))
+                    funding_rates["usd_next_funding_time"] = int(latest_funding.get("nextFundingTime", 0))
                 else:
-                    # Some coins may not have USD perpetual futures, so we set to 0
+                    # Default values if no data returned
                     funding_rates["usd_funding_rate"] = 0.0
                     funding_rates["usd_funding_timestamp"] = 0
                     funding_rates["usd_next_funding_time"] = 0
+            else:
+                # Some coins may not have USD perpetual futures, so we set to 0
+                funding_rates["usd_funding_rate"] = 0.0
+                funding_rates["usd_funding_timestamp"] = 0
+                funding_rates["usd_next_funding_time"] = 0
         except Exception as e:
             # Some coins may not have USD perpetual futures, so we set to 0
             funding_rates["usd_funding_rate"] = 0.0
             funding_rates["usd_funding_timestamp"] = 0
             funding_rates["usd_next_funding_time"] = 0
-        
+
         return funding_rates
 
 
@@ -391,7 +383,7 @@ class MarketCoordinator:
         self.liquidation_client = BinanceLiquidationClient(tracked_symbols=self.coins) if not simulation_mode else None
         self.simulation_mode = simulation_mode
         self.simulation_timestamp = None  # Will track current simulation time
-        self.initial_simulation_timestamp = datetime(2021, 2, 1, 0, 0, 0, tzinfo=timezone.utc).timestamp()  # Track initial simulation time - February 1, 2021 00:00:00 UTC
+        self.initial_simulation_timestamp = datetime(2022, 2, 1, 0, 0, 0, tzinfo=timezone.utc).timestamp()  # Track initial simulation time - January 1, 2022 00:00:00 UTC (skip 2021 due to XRP data issues)
         
     def _initialize_xml(self):
         """Initialize is now handled by the shared XML manager"""
@@ -401,10 +393,14 @@ class MarketCoordinator:
     async def prepare_market_state(self) -> str:
         """Prepare the market state by fetching data from Binance or Redis (simulation mode) and return a user prompt"""
 
-        # Start background liquidation collection if not already running (only in live mode)
-        if not self.simulation_mode and self.liquidation_client:
-            await self.liquidation_client.start_background_collection()
+        # Skip background liquidation collection to avoid WebSocket timeout issues
+        # if not self.simulation_mode and self.liquidation_client:
+        #     await self.liquidation_client.start_background_collection()
 
+        return await self._prepare_market_state_data()
+
+    async def _prepare_market_state_data(self) -> str:
+        """Unified method to prepare market state data for both live and simulation modes"""
         if self.simulation_mode:
             return await self._prepare_simulation_market_state()
         else:
@@ -420,33 +416,37 @@ class MarketCoordinator:
                 f"",
                 f"CURRENT MARKET STATE FOR ALL COINS"
             ]
-            
+
             all_coin_data = {}
-            
+
             # Fetch data for each coin
             for coin in self.coins:
                 symbol = f"{coin}USDT"  # Binance futures pairs typically use USDT
-                
+
                 # Get current price
                 current_price = await fetcher.get_ticker_price(symbol)
-                
+                logger.info(f"DEBUG: Current price for {symbol}: {current_price}")
+
                 # Get kline data for indicators (3-minute intervals) - getting more data points for proper calculations
                 # Need at least 50 data points to properly calculate EMA20, MACD (12,26,9), and RSI
                 # But we'll only keep the last 10 values for the series in the XML
                 kline_data = await fetcher.get_klines(symbol, "3m", 50)
+                logger.info(f"DEBUG: Kline data for {symbol}: {len(kline_data)} records")
                 kline_prices = [k[3] for k in kline_data]  # Close prices
                 kline_highs = [k[1] for k in kline_data]   # High prices
                 kline_lows = [k[2] for k in kline_data]    # Low prices
                 kline_volumes = [k[4] for k in kline_data] # Volume data
 
                 # Get longer term kline data for 4-hour timeframe (request more data for proper calculations)
-                print(f"DEBUG: Fetching 4h klines for {symbol}")
+                logger.info(f"DEBUG: Fetching 4h klines for {symbol}")
                 kline_4h_data = await fetcher.get_klines(symbol, "4h", 200)  # Request more data for proper calculations
+                logger.info(f"DEBUG: 4h data for {symbol}: {len(kline_4h_data) if kline_4h_data else 0} records")
                 if not kline_4h_data or len(kline_4h_data) < 100:
-                    print(f"DEBUG: 4h failed or insufficient data ({len(kline_4h_data) if kline_4h_data else 0} records), trying 1h for {symbol}")
+                    logger.info(f"DEBUG: 4h failed or insufficient data ({len(kline_4h_data) if kline_4h_data else 0} records), trying 1h for {symbol}")
                     kline_4h_data = await fetcher.get_klines(symbol, "1h", 200)
+                    logger.info(f"DEBUG: 1h data for {symbol}: {len(kline_4h_data) if kline_4h_data else 0} records")
                     if not kline_4h_data or len(kline_4h_data) < 100:
-                        print(f"DEBUG: 1h also failed or insufficient data ({len(kline_4h_data) if kline_4h_data else 0} records), using 3m data for {symbol}")
+                        logger.info(f"DEBUG: 1h also failed or insufficient data ({len(kline_4h_data) if kline_4h_data else 0} records), using 3m data for {symbol}")
                         # Last resort: use 3m data for calculations
                         kline_4h_data = kline_data[:200] if len(kline_data) >= 200 else kline_data
 
@@ -454,12 +454,13 @@ class MarketCoordinator:
                 kline_4h_highs = [k[1] for k in kline_4h_data] if kline_4h_data else []   # High prices
                 kline_4h_lows = [k[2] for k in kline_4h_data] if kline_4h_data else []    # Low prices
                 kline_4h_volumes = [k[4] for k in kline_4h_data] if kline_4h_data else [] # Volume data
-                print(f"DEBUG: Final data for {symbol}: {len(kline_4h_prices)} prices, {len(kline_4h_highs)} highs, {len(kline_4h_lows)} lows, {len(kline_4h_volumes)} volumes")
+                logger.info(f"DEBUG: Final data for {symbol}: {len(kline_4h_prices)} prices, {len(kline_4h_highs)} highs, {len(kline_4h_lows)} lows, {len(kline_4h_volumes)} volumes")
 
-                # Get liquidation orders data from WebSocket client
-                symbol_usdt = f"{coin}USDT"
-                top_liquidations = self.liquidation_client.get_top_liquidations(symbol_usdt) if self.liquidation_client else []
-                liquidation_orders = {"rows": top_liquidations, "total": len(top_liquidations)}
+                # Skip liquidation orders data to avoid WebSocket issues
+                # symbol_usdt = f"{coin}USDT"
+                # top_liquidations = self.liquidation_client.get_top_liquidations(symbol_usdt) if self.liquidation_client else []
+                # liquidation_orders = {"rows": top_liquidations, "total": len(top_liquidations)}
+                liquidation_orders = {"rows": [], "total": 0}
 
                 # Get open interest
                 open_interest = await fetcher.get_open_interest(coin)
@@ -501,7 +502,7 @@ class MarketCoordinator:
                 rsi_14_series = [float(x) if not np.isnan(x) else 50.0 for x in rsi_14_result]
 
                 # Calculate long-term indicators from 4-hour data using ta-lib
-                print(f"DEBUG: Starting calculations for {symbol}, data_len={len(kline_4h_prices)}")
+                logger.info(f"DEBUG: Starting calculations for {symbol}, data_len={len(kline_4h_prices)}")
 
                 # Convert to numpy arrays
                 prices_np = np.array(kline_4h_prices, dtype=float)
@@ -522,7 +523,7 @@ class MarketCoordinator:
                 atr_3_period = float(atr3_result[-1]) if len(atr3_result) > 0 and not np.isnan(atr3_result[-1]) else current_price * 0.01
                 atr_14_period = float(atr14_result[-1]) if len(atr14_result) > 0 and not np.isnan(atr14_result[-1]) else current_price * 0.02
 
-                print(f"DEBUG: ta-lib calculations for {symbol}: EMA20={long_term_ema_20}, EMA50={long_term_ema_50}, ATR3={atr_3_period}, ATR14={atr_14_period}")
+                logger.info(f"DEBUG: ta-lib calculations for {symbol}: EMA20={long_term_ema_20}, EMA50={long_term_ema_50}, ATR3={atr_3_period}, ATR14={atr_14_period}")
 
                 # Calculate longer-term MACD and RSI series from 4-hour data using talib
                 macd_4h_result, macd_4h_signal, macd_4h_hist = talib.MACD(prices_np, fastperiod=12, slowperiod=26, signalperiod=9)
@@ -540,31 +541,31 @@ class MarketCoordinator:
 
                 # Calculate longer-term RSI 14 series from 4-hour data
                 long_rsi_14_series = [calculate_rsi(kline_4h_prices[:i+1], 14) if i >= 13 else 50.0 for i in range(len(kline_4h_prices))]
-                
+
                 # For the intraday prices, keep only the last 10 values
                 intraday_prices = kline_prices[-10:] if len(kline_prices) >= 10 else kline_prices
-                
+
                 # Keep only the last 10 values for each series
                 ema_20_series = ema_20_series[-10:] if len(ema_20_series) >= 10 else ema_20_series
                 macd_value_series = macd_value_series[-10:] if len(macd_value_series) >= 10 else macd_value_series
                 macd_signal_series = macd_signal_series[-10:] if len(macd_signal_series) >= 10 else macd_signal_series
                 rsi_7_series = rsi_7_series[-10:] if len(rsi_7_series) >= 10 else rsi_7_series
                 rsi_14_series = rsi_14_series[-10:] if len(rsi_14_series) >= 10 else rsi_14_series
-                
+
                 # Keep only the last 10 values for longer-term series
                 long_macd_series = long_macd_series[-10:] if len(long_macd_series) >= 10 else long_macd_series
                 long_rsi_14_series = long_rsi_14_series[-10:] if len(long_rsi_14_series) >= 10 else long_rsi_14_series
-                
+
                 # Process liquidation orders to get biggest 10 buy and sell orders
                 buy_orders = []
                 sell_orders = []
-                
+
                 if "rows" in liquidation_orders and liquidation_orders["rows"]:
                     for order in liquidation_orders["rows"]:
                         # Filter out orders older than 24 hours (86400000 milliseconds)
                         order_time = int(order.get("time", 0))
                         current_time = int(datetime.now().timestamp() * 1000)
-                        
+
                         if current_time - order_time <= 86400000:  # Within 24 hours
                             order_info = {
                                 "price": float(order.get("price", 0)),
@@ -572,19 +573,19 @@ class MarketCoordinator:
                                 "side": order.get("side", ""),
                                 "symbol": order.get("symbol", "")
                             }
-                            
+
                             if order_info["side"] == "BUY":
                                 buy_orders.append(order_info)
                             elif order_info["side"] == "SELL":
                                 sell_orders.append(order_info)
-                
+
                 # Sort by quantity (largest first) and take top 10
                 buy_orders.sort(key=lambda x: x["qty"], reverse=True)
                 sell_orders.sort(key=lambda x: x["qty"], reverse=True)
-                
+
                 top_10_buy_orders = buy_orders[:10] if buy_orders else []
                 top_10_sell_orders = sell_orders[:10] if sell_orders else []
-                
+
                 # Add coin data to market state
                 coin_data = [
                     f"ALL {coin} DATA",
@@ -609,7 +610,7 @@ class MarketCoordinator:
                     f"",
                     f"Top 10 Buy Liquidations:",
                 ]
-                
+
                 # Add top 10 buy orders
                 if top_10_buy_orders:
                     for i, order in enumerate(top_10_buy_orders, 1):
@@ -628,7 +629,7 @@ class MarketCoordinator:
                         coin_data.append(f"  {i}. Price: {order['price']:.2f}, Quantity: {order['qty']:.6f}")
                 else:
                     coin_data.append(f"  No significant sell liquidations in past 24h")
-                
+
                 coin_data.extend([
                     f"",
                     f"Longer‑term context (4‑hour timeframe):",
@@ -640,9 +641,9 @@ class MarketCoordinator:
                     f"RSI indicators (14‑Period): {long_rsi_14_series}",
                     f""
                 ])
-                
+
                 market_state_parts.extend(coin_data)
-                
+
                 # Store detailed coin data for XML update
                 all_coin_data[coin.lower()] = {
                     "current_price": current_price,
@@ -670,12 +671,15 @@ class MarketCoordinator:
                     "top_10_sell_liquidations": top_10_sell_orders,
                     "timestamp": datetime.now().isoformat()
                 }
-            
+
             # Get real account information from XML
             account_summary = self.xml_manager.get_account_summary()
 
             # Get active trades for positions info
             active_trades = self.trade_xml_manager.get_active_trades()
+
+            # Update unrealized PNL for active trades and persist to XML
+            await self._update_active_trades_pnl(active_trades, all_coin_data)
 
             # Add account information
             account_info = [
@@ -683,25 +687,22 @@ class MarketCoordinator:
                 f"Current Total Return (percent): {account_summary.get('total_return', 0.0)}%",
                 f"Available Cash: {account_summary.get('available_cash', 10000.0)}",
                 f"Current Account Value: {account_summary.get('current_account_value', 10000.0)}",
-                f"Current live positions & performance: {json.dumps(active_trades)}",
+                f"Current live positions & performance: {json.dumps(active_trades, default=str)}",
                 f"Sharpe Ratio: {account_summary.get('sharpe_ratio', 0.0)}"
             ]
-            
+
             market_state_parts.extend(account_info)
             market_state_parts.append("---END OF USER PROMPT---")
-            
+
             # Update the state_of_market in XML
             await self._update_state_of_market(all_coin_data)
 
             # Save the user prompt to file immediately after generation
             user_prompt_text = "\n".join(market_state_parts)
-            with open('user_prompt.txt', 'w', encoding='utf-8') as f:
-                f.write(f"--- User Prompt generated at {datetime.now()} ---\n\n")
-                f.write(user_prompt_text)
-                f.write(f"\n\n--- End of user prompt ---")
+            self._save_user_prompt_to_file(user_prompt_text)
 
             return user_prompt_text
-    
+
     async def _update_state_of_market(self, all_coin_data: Dict[str, Dict]):
         """Update the state_of_market section in the XML file"""
         # Get the state_of_market section via the shared manager
@@ -809,15 +810,16 @@ class MarketCoordinator:
     
     async def run_market_updates(self, trading_agents):
         """Run continuous market updates (to be called every minute)"""
-        print("Starting market coordinator...")
+        logger.info("Starting market coordinator...")
 
         try:
-            # Start background liquidation collection
-            if self.liquidation_client:
-                await self.liquidation_client.start_background_collection()
-                print("Background liquidation collection started")
+            # Skip background liquidation collection to avoid WebSocket timeout issues
+            # if self.liquidation_client:
+            #     await self.liquidation_client.start_background_collection()
+            #     logger.info("Background liquidation collection started")
+            logger.info("Skipping liquidation collection to avoid WebSocket issues")
         except Exception as e:
-            print(f"Failed to start liquidation collection: {e}")
+            logger.info(f"Failed to start liquidation collection: {e}")
 
         while True:
             try:
@@ -825,9 +827,9 @@ class MarketCoordinator:
                 user_prompt = await self.prepare_market_state()
 
                 if self.simulation_mode:
-                    print(f"Market state prepared at {datetime.fromtimestamp(self.simulation_timestamp)} (simulation)")
+                    logger.info(f"Market state prepared at {datetime.fromtimestamp(self.simulation_timestamp)} (simulation)")
                 else:
-                    print(f"Market state prepared at {datetime.now()}")
+                    logger.info(f"Market state prepared at {datetime.now()}")
 
                 # Pass the market data to all trading agents in parallel
                 await asyncio.gather(*[agent.process_user_prompt(user_prompt) for agent in trading_agents])
@@ -838,14 +840,17 @@ class MarketCoordinator:
                     await asyncio.sleep(120)  # 2 minutes for live trading
 
             except Exception as e:
-                print(f"Error in market coordinator: {e}")
-                print("Full stack trace:")
+                logger.info(f"Error in market coordinator: {e}")
+                logger.info("Full stack trace:")
                 traceback.print_exc()
+                # Check if the error is related to undefined variable
+                if "stop_loss_calculated_manually" in str(e):
+                    logger.info("Detected undefined variable error - this should be fixed in Agent.py")
                 await asyncio.sleep(60)  # Wait before retrying
 
     async def _prepare_simulation_market_state(self) -> str:
         """Prepare market state using historical data from Redis for simulation mode"""
-        print("Preparing simulation market state from Redis...")
+        logger.info("Preparing simulation market state from Redis...")
 
         # Initialize simulation timestamp if not set
         if self.simulation_timestamp is None:
@@ -874,24 +879,11 @@ class MarketCoordinator:
             # Get historical klines from Redis (simulate current market state)
             # Get the last 10 data points (50 for calculations like live mode) around the current simulation timestamp
             window_seconds = 50 * 5 * 60  # 50 points * 5 min * 60 sec = 15000 seconds
-            start_ts = max(0, self.simulation_timestamp - window_seconds)
-            end_ts = self.simulation_timestamp
+            start_ts = int(max(0, self.simulation_timestamp - window_seconds))
+            end_ts = int(self.simulation_timestamp)
 
             symbol = f"{coin}USDT"  # Use USDT symbol format for Redis
-            cached_klines = await get_cached_klines(symbol, "5m", start_ts, end_ts)
-
-            # Filter out records with null/empty OHLC values for data quality
-            filtered_klines = [k for k in cached_klines if all(k.get(field) for field in ['time', 'open', 'high', 'low', 'close', 'vol'])]
-
-            if len(filtered_klines) < len(cached_klines):
-                print(f"[WARNING] Filtered out {len(cached_klines) - len(filtered_klines)} records with null/empty OHLC values for {coin} in simulation")
-
-            if not filtered_klines:
-                print(f"No valid cached data for {coin} at simulation timestamp {self.simulation_timestamp}")
-                continue
-
-            # Use filtered data
-            cached_klines = filtered_klines
+            cached_klines = await get_cached_klines_individual_range(symbol, "5m", start_ts, end_ts)
 
             # Use the most recent kline as "current" price
             current_kline = cached_klines[-1] if cached_klines else None
@@ -1094,12 +1086,88 @@ class MarketCoordinator:
 
         # Save the user prompt to file
         user_prompt_text = "\n".join(market_state_parts)
-        with open('user_prompt.txt', 'w', encoding='utf-8') as f:
-            f.write(f"--- User Prompt generated at {datetime.now()} (SIMULATION TIME: {datetime.fromtimestamp(self.simulation_timestamp)}) ---\n\n")
-            f.write(user_prompt_text)
-            f.write(f"\n\n--- End of user prompt ---")
+        self._save_user_prompt_to_file(user_prompt_text, self.simulation_timestamp)
 
         return user_prompt_text
+    def _save_user_prompt_to_file(self, user_prompt_text: str, simulation_timestamp: float = None):
+        """Save the user prompt to file with appropriate header based on mode"""
+        with open('user_prompt.txt', 'w', encoding='utf-8') as f:
+            if simulation_timestamp is not None:
+                f.write(f"--- (SIMULATION TIME: {datetime.fromtimestamp(simulation_timestamp)}) ---\n\n")
+            else:
+                f.write("--- USER_PROMPT ---\n\n")
+            f.write(user_prompt_text)
+            f.write("\n\n--- End of user prompt ---")
+
+    async def _update_active_trades_pnl(self, active_trades, all_coin_data):
+        """Update unrealized PNL for active trades and persist to XML"""
+        try:
+            for trade in active_trades:
+                symbol = trade.get('symbol') or trade.get('coin', '').upper()
+                if symbol and symbol.lower() in all_coin_data:
+                    current_price = all_coin_data[symbol.lower()]['current_price']
+                    entry_price = trade.get('entry_price', 0)
+                    quantity = trade.get('quantity', 0)
+                    leverage = trade.get('leverage', 1)
+                    position_type = trade.get('position_type', 'long')
+
+                    if entry_price > 0 and current_price > 0:
+                        if position_type == "long":
+                            unrealized_pnl = (current_price - entry_price) * abs(quantity) * leverage
+                        else:  # short
+                            unrealized_pnl = (entry_price - current_price) * abs(quantity) * leverage
+
+                        trade['unrealized_pnl'] = unrealized_pnl
+                        trade['pnl'] = unrealized_pnl  # Also update pnl for consistency
+
+                        # Update the XML file with the new PNL value
+                        await self._update_xml_trade_pnl(trade, symbol, unrealized_pnl)
+
+        except Exception as e:
+            logger.info(f"Error updating active trades PNL: {e}")
+
+    async def _update_xml_trade_pnl(self, trade, symbol, pnl_value):
+        """Update the PNL value in the XML file for persistence"""
+        try:
+            # Find the agent that owns this trade
+            agent_kind = trade.get('agent', 'AgentDeepSeek')  # Default fallback
+
+            # Get the agent section using the shared manager
+            agent_elem = self.xml_manager.get_agent_section(agent_kind)
+
+            if agent_elem is not None:
+                # Find the active trade
+                active_trades = agent_elem.find("active_trades")
+                if active_trades is not None:
+                    for trade_elem in active_trades.findall("trade"):
+                        coin_elem = trade_elem.find("coin")
+                        symbol_elem = trade_elem.find("symbol")
+                        trade_symbol = None
+                        if coin_elem is not None and coin_elem.text:
+                            trade_symbol = coin_elem.text.upper()
+                        elif symbol_elem is not None and symbol_elem.text:
+                            trade_symbol = symbol_elem.text.upper()
+
+                        if trade_symbol == symbol.upper():
+                            # Update unrealized_pnl
+                            pnl_elem = trade_elem.find("unrealized_pnl")
+                            if pnl_elem is None:
+                                pnl_elem = ET.SubElement(trade_elem, "unrealized_pnl")
+                            pnl_elem.text = str(pnl_value)
+
+                            # Also update pnl for consistency
+                            pnl_elem2 = trade_elem.find("pnl")
+                            if pnl_elem2 is None:
+                                pnl_elem2 = ET.SubElement(trade_elem, "pnl")
+                            pnl_elem2.text = str(pnl_value)
+
+                            # Write back to file
+                            self.xml_manager._write_xml()
+                            logger.info(f"Updated XML for {symbol} trade PNL: {pnl_value}")
+                            break
+
+        except Exception as e:
+            logger.info(f"Error updating XML trade PNL: {e}")
 
     async def close(self):
         """Close the liquidation client"""

@@ -3,6 +3,19 @@
 {% block title %}MODELS - Trading Dashboard{% endblock %}
 
 {% block content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-clock"></i> Last Update: <span id="last-update-timestamp">Loading...</span>
+            </div>
+            <div id="connection-status">
+                <i class="fas fa-circle text-warning"></i> Connecting...
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-12">
         <div class="card">
@@ -69,6 +82,7 @@ document.addEventListener('DOMContentLoaded', function() {
         currentAgents = data.agents;
         updateModelsOverview(data.agents);
         updateAgentDetails(data.agents);
+        updateTimestamp(data.timestamp);
     });
 
     socket.on('status', function(data) {
@@ -91,6 +105,16 @@ document.addEventListener('DOMContentLoaded', function() {
             statusEl.innerHTML = '<i class="fas fa-circle text-success"></i> Connected';
         } else {
             statusEl.innerHTML = '<i class="fas fa-circle text-danger"></i> Disconnected';
+        }
+    }
+
+    function updateTimestamp(timestamp) {
+        const timestampEl = document.getElementById('last-update-timestamp');
+        if (timestamp) {
+            const date = new Date(timestamp);
+            timestampEl.textContent = date.toLocaleString();
+        } else {
+            timestampEl.textContent = 'Unknown';
         }
     }
 
@@ -345,9 +369,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (agent.latest_response) {
             const response = agent.latest_response;
+            const responseTimestamp = agent.timestamp ? new Date(agent.timestamp).toLocaleString() : 'Unknown';
             detailsHtml += `
                 <div class="card">
                     <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title mb-0">Trading Decision</h6>
+                            <small class="text-muted"><i class="fas fa-clock"></i> ${responseTimestamp}</small>
+                        </div>
                         <div class="row">
                             <div class="col-md-6">
                                 <p><strong>Action:</strong> ${response.action || 'N/A'}</p>
@@ -378,15 +407,18 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
 
         if (agent.active_trades && agent.active_trades.length > 0) {
-            detailsHtml += '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Symbol</th><th>Entry Price</th><th>Quantity</th><th>Stop Loss</th><th>Timestamp</th></tr></thead><tbody>';
+            detailsHtml += '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Symbol</th><th>Entry Price</th><th>Quantity</th><th>Stop Loss</th><th>Unrealized PNL</th><th>Timestamp</th></tr></thead><tbody>';
 
             agent.active_trades.forEach(trade => {
+                const unrealizedPnl = trade.unrealized_pnl || 0;
+                const pnlClass = unrealizedPnl >= 0 ? 'text-success' : 'text-danger';
                 detailsHtml += `
                     <tr>
                         <td>${trade.symbol || 'N/A'}</td>
                         <td>$${trade.entry_price?.toFixed(2) || '0.00'}</td>
                         <td>${trade.quantity || '0'}</td>
                         <td>$${trade.stop_loss?.toFixed(2) || '0.00'}</td>
+                        <td class="${pnlClass}">$${unrealizedPnl.toFixed(2)}</td>
                         <td>${trade.timestamp || 'N/A'}</td>
                     </tr>
                 `;
@@ -395,6 +427,39 @@ document.addEventListener('DOMContentLoaded', function() {
             detailsHtml += '</tbody></table></div>';
         } else {
             detailsHtml += '<p class="text-muted">No active trades.</p>';
+        }
+
+        detailsHtml += `
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="row">
+                <div class="col-12">
+                    <h6>Closed Trades</h6>
+        `;
+
+        if (agent.closed_trades && agent.closed_trades.length > 0) {
+            detailsHtml += '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Symbol</th><th>Entry Price</th><th>Exit Price</th><th>Quantity</th><th>PNL</th><th>Timestamp</th></tr></thead><tbody>';
+
+            agent.closed_trades.forEach(trade => {
+                const pnlClass = (trade.pnl || 0) >= 0 ? 'text-success' : 'text-danger';
+                detailsHtml += `
+                    <tr>
+                        <td>${trade.symbol || 'N/A'}</td>
+                        <td>$${trade.entry_price?.toFixed(2) || '0.00'}</td>
+                        <td>$${trade.exit_price?.toFixed(2) || '0.00'}</td>
+                        <td>${trade.quantity || '0'}</td>
+                        <td class="${pnlClass}">$${trade.pnl?.toFixed(2) || '0.00'}</td>
+                        <td>${trade.timestamp || 'N/A'}</td>
+                    </tr>
+                `;
+            });
+
+            detailsHtml += '</tbody></table></div>';
+        } else {
+            detailsHtml += '<p class="text-muted">No closed trades.</p>';
         }
 
         detailsHtml += `

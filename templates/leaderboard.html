@@ -3,6 +3,19 @@
 {% block title %}LEADERBOARD - Trading Dashboard{% endblock %}
 
 {% block content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-clock"></i> Last Update: <span id="last-update-timestamp">Loading...</span>
+            </div>
+            <div id="connection-status">
+                <i class="fas fa-circle text-warning"></i> Connecting...
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-12">
         <div class="card">
@@ -111,6 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updatePNLChart(data.leaderboard);
         updateSharpeChart(data.leaderboard);
         updatePerformanceOverview(data.leaderboard);
+        updateTimestamp(data.timestamp);
     });
 
     socket.on('status', function(data) {
@@ -133,6 +147,16 @@ document.addEventListener('DOMContentLoaded', function() {
             statusEl.innerHTML = '<i class="fas fa-circle text-success"></i> Connected';
         } else {
             statusEl.innerHTML = '<i class="fas fa-circle text-danger"></i> Disconnected';
+        }
+    }
+
+    function updateTimestamp(timestamp) {
+        const timestampEl = document.getElementById('last-update-timestamp');
+        if (timestamp) {
+            const date = new Date(timestamp);
+            timestampEl.textContent = date.toLocaleString();
+        } else {
+            timestampEl.textContent = 'Unknown';
         }
     }
 

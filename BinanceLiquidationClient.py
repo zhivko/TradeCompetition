@@ -178,7 +178,7 @@ async def main():
 
     # Get top liquidations for a symbol
     top_btc = client.get_top_liquidations("BTCUSDT")
-    print(f"Top BTC liquidations: {len(top_btc)}")
+    logger.info(f"Top BTC liquidations: {len(top_btc)}")
 
     # Stop collection
     await client.stop_background_collection()

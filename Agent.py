@@ -9,6 +9,8 @@ import aiohttp
 from dotenv import load_dotenv
 from abc import ABC, abstractmethod
 
+from logging_config import logger
+
 # Import shared XML manager
 from XmlManager import TradingXMLManager
 
@@ -16,10 +18,8 @@ from XmlManager import TradingXMLManager
 load_dotenv()
 
 # Money management constants
-MAX_EXPOSURE_PERCENT = 0.1  # 10% of cash position exposed as active trades
+MAX_EXPOSURE_PERCENT = 0.02  # 2% of net worth exposed as active trades
 MIN_CONFIDENCE_THRESHOLD = 0.7  # Minimum confidence required for trading actions
-# Money management constants
-MAX_EXPOSURE_PERCENT = 0.1  # 10% of cash position exposed as active trades
 
 # Dataclasses for trade structures
 @dataclass
@@ -45,6 +45,7 @@ class ActiveTrade:
     wait_for_fill: bool
     entry_oid: int
     notional_usd: float
+    position_type: str = "long"  # "long" or "short"
     timestamp: str = None  # ISO format timestamp when trade was created
     reasoning: List[Dict[str, str]] = None  # List of reasoning entries with timestamps
 
@@ -266,12 +267,21 @@ class Agent(ABC):
 
 Risk Rules (MUST FOLLOW):
 - Max 5 active/open trades at any time (check recent trades summary).
-- Each trade risks MAX 2% of total capital (calculate based on stop-loss distance and leverage).
-- Quantity formula: quantity = (total_capital * 0.02) / (stop_loss_distance * leverage * entry_price)
-- Suggest stop-loss: 2-5% away from entry, based on volatility (e.g., ATR).
+- Each trade risks MAX 2% of net worth (calculate based on stop-loss distance and leverage).
+- Quantity formula: quantity = (net_worth * 0.02) / (stop_loss_distance * leverage * entry_price)
+- STOP-LOSS CALCULATION: Always calculate stop_loss as a price level. For long positions: stop_loss = entry_price - (ATR_14_period * 2). For short positions: stop_loss = entry_price + (ATR_14_period * 2). Use ATR_14_period from the market data for the specific coin. Ensure stop_loss is never more than 5% away from entry_price.
 - If rules violated, output HOLD with reason.
+- If active trades have negative PNL for >3 days, consider UNWIND action to close positions when risk tolerance exceeded or no momentum.
+- UNWIND: Close all positions at market price when risk tolerance exceeded or no momentum.
 
-Output ONLY valid JSON: {{"action": "buy/sell/hold", "symbol": "<coin symbol if action is buy/sell>", "quantity": float, "stop_loss": float (price), "confidence": float 0-1, "reason": "brief explanation including risk calc"}}
+SELL SIGNALS:
+- RSI > 70 (overbought) with bearish MACD divergence
+- Price below long-term EMA with negative momentum
+- Risk per trade exceeds 2%
+
+Output ONLY valid JSON: {{"action": "buy/sell/hold/unwind", "symbol": "<coin symbol if action is buy/sell>", "quantity": float, "stop_loss": float (price), "confidence": float 0-1, "reason": "brief explanation including risk calc", "invalidation_condition": "string", "timestamp": "ISO format of timestamp in market"}}
+
+Note: Use "buy" for long positions and "sell" for short positions. Quantity should always be positive. Use "unwind" to close all positions.
 
 Example: With $10k capital, 3% stop distance, 5x leverage: quantity = (10000 * 0.02) / (0.03 * 5) = ~1333 units worth.
 
@@ -317,14 +327,7 @@ Only respond with valid JSON. Do not include any other text or explanation."""
 
         return recommendation
 
-    def _save_prompt_and_response(self, prompt: str, recommendation: Dict, api_type: str = "API"):
-        """Save the prompt and response to files"""
-        # Save the full prompt to user_prompt.txt
-        with open('user_prompt.txt', 'w', encoding='utf-8') as f:
-            f.write(f"--- Prompt sent to {api_type} at {datetime.now()} ---\n\n")
-            f.write(prompt)
-            f.write(f"\n\n--- End of prompt ---")
-
+    def _save_response(self, prompt: str, recommendation: Dict, api_type: str = "API"):
         # Save the response to llm_response_[api_type].txt
         response_filename = f'llm_response_{api_type}.txt'
         with open(response_filename, 'w', encoding='utf-8') as f:
@@ -332,10 +335,15 @@ Only respond with valid JSON. Do not include any other text or explanation."""
             f.write(json.dumps(recommendation, indent=2))
             f.write(f"\n--- End of response ---")
 
-    async def get_trade_recommendation(self, market_data: Dict, account_info: Dict, active_trades: List[Dict], portfolio: Dict = None) -> Dict:
+    async def get_trade_recommendation(self, market_data: Dict, account_info: Dict, active_trades: List[Dict], portfolio: Dict = None, kind: str = None) -> Dict:
         """Get trade recommendation based on market data using template method pattern"""
         # Construct the prompt for the API
         prompt = self._construct_prompt(market_data, account_info, active_trades)
+
+        # Save the prompt to agent-specific file
+        prompt_filename = f'user_prompt_{kind}.txt' if kind else 'user_prompt.txt'
+        with open(prompt_filename, 'w', encoding='utf-8') as f:
+            f.write(prompt)
 
         # Call the API (implemented by subclasses)
         content = await self._call_api(prompt)
@@ -345,7 +353,7 @@ Only respond with valid JSON. Do not include any other text or explanation."""
 
         # Parse the JSON response
         if not content or not content.strip():
-            print(f"DEBUG [{self.__class__.__name__}]: Empty or None response content")
+            logger.info(f"DEBUG [{self.__class__.__name__}]: Empty or None response content")
             recommendation = {
                 "action": "hold",
                 "reason": "Empty response from API"
@@ -354,15 +362,18 @@ Only respond with valid JSON. Do not include any other text or explanation."""
             try:
                 recommendation = json.loads(content)
             except json.JSONDecodeError as e:
-                print(f"DEBUG [{self.__class__.__name__}]: Failed to parse JSON response: {e}")
-                print(f"DEBUG [{self.__class__.__name__}]: Response content: {content}")
+                logger.info(f"DEBUG [{self.__class__.__name__}]: Failed to parse JSON response: {e}")
+                logger.info(f"DEBUG [{self.__class__.__name__}]: Response content: {content}")
                 recommendation = {
                     "action": "hold",
                     "reason": f"Invalid JSON response from API: {str(e)}"
                 }
 
+        # Add timestamp to the recommendation
+        recommendation['timestamp'] = datetime.now().isoformat()
+
         # Save the prompt and response
-        self._save_prompt_and_response(prompt, recommendation, self.__class__.__name__)
+        self._save_response(prompt, recommendation, self.__class__.__name__)
 
         # Enforce risk rules post-parsing
         if portfolio:
@@ -380,17 +391,17 @@ Only respond with valid JSON. Do not include any other text or explanation."""
                 async with session.post(self.api_url, headers=headers, json=payload) as response:
                     if response.status != 200:
                         response_text = await response.text()
-                        print(f"DEBUG [{self.__class__.__name__}]: API returned status {response.status}")
-                        print(f"DEBUG [{self.__class__.__name__}]: Response body: {response_text}")
+                        logger.info(f"DEBUG [{self.__class__.__name__}]: API returned status {response.status}")
+                        logger.info(f"DEBUG [{self.__class__.__name__}]: Response body: {response_text}")
                         raise Exception(f"API request failed with status {response.status}: {response_text}")
 
                     result = await response.json()
                     return result['choices'][0]['message']['content']
             except Exception as e:
-                print(f"Error calling API [{self.__class__.__name__}]: {e}")
-                print(f"Error type: {type(e).__name__}")
+                logger.info(f"Error calling API [{self.__class__.__name__}]: {e}")
+                logger.info(f"Error type: {type(e).__name__}")
                 import traceback
-                print(f"Full traceback:")
+                logger.info(f"Full traceback:")
                 traceback.print_exc()
                 # Return a default JSON string in case of API failure
                 return json.dumps({
@@ -521,7 +532,11 @@ class TradeXMLManager:
         ET.SubElement(trade_elem, "wait_for_fill").text = str(trade.wait_for_fill).lower()
         ET.SubElement(trade_elem, "entry_oid").text = str(trade.entry_oid)
         ET.SubElement(trade_elem, "notional_usd").text = str(trade.notional_usd)
+        ET.SubElement(trade_elem, "position_type").text = trade.position_type
         ET.SubElement(trade_elem, "timestamp").text = trade.timestamp
+
+        # Add stop loss source indicator
+        ET.SubElement(trade_elem, "stop_loss_source").text = "manual" if stop_loss_calculated_manually else "llm"
 
         # Add reasoning history
         if trade.reasoning:
@@ -580,9 +595,21 @@ class TradeXMLManager:
                 quantity = float(trade_elem.find("quantity").text or 0)
                 entry_price = float(trade_elem.find("entry_price").text or 0)
                 leverage = int(trade_elem.find("leverage").text or 1)
+                position_type_elem = trade_elem.find("position_type")
+                if position_type_elem is None:
+                    # Fallback for trades created before position_type was added
+                    position_type = "long"
+                    logger.warning(f"Missing position_type for trade {symbol}, assuming 'long'")
+                else:
+                    position_type = position_type_elem.text
 
-                # Calculate final PnL
-                final_pnl = (exit_price - entry_price) * quantity * leverage
+                # Calculate final PnL based on position type
+                if position_type == "long":
+                    final_pnl = (exit_price - entry_price) * abs(quantity) * leverage
+                elif position_type == "short":
+                    final_pnl = (entry_price - exit_price) * abs(quantity) * leverage
+                else:
+                    raise ValueError(f"Invalid position_type '{position_type}' for trade {symbol}")
 
                 # Create closed trade element
                 closed_trade_elem = ET.SubElement(closed_trades, "trade")
@@ -656,16 +683,17 @@ class TradeDecisionProcessor:
         self.on_trade_opened = None
         self.on_trade_closed = None
         
-    def process_trade_recommendation(self, recommendation: Dict, current_prices: Dict[str, float], available_cash: float, confidence: float):
+    def process_trade_recommendation(self, recommendation: Dict, current_prices: Dict[str, float], available_cash: float, confidence: float, market_data: Dict = None):
         """Process the trade recommendation from the API and execute trades if needed"""
-        print(f"DEBUG [{self.kind}]: Processing recommendation: {recommendation}")
-        print(f"DEBUG [{self.kind}]: Available cash: {available_cash}")
-        print(f"DEBUG [{self.kind}]: Current prices: {current_prices}")
-        print(f"DEBUG [{self.kind}]: Confidence: {confidence}")
+        logger.info(f"DEBUG [{self.kind}]: Processing recommendation: {recommendation}")
+        logger.info(f"DEBUG [{self.kind}]: Available cash: {available_cash}")
+        logger.info(f"DEBUG [{self.kind}]: Current prices: {current_prices}")
+        logger.info(f"DEBUG [{self.kind}]: Confidence: {confidence}")
+        logger.info(f"DEBUG [{self.kind}]: Market data provided: {market_data is not None}")
 
         # Adjust quantity based on confidence and enforce minimum threshold
         if confidence < MIN_CONFIDENCE_THRESHOLD:
-            print(f"Confidence {confidence} < {MIN_CONFIDENCE_THRESHOLD}, not trading")
+            logger.info(f"Confidence {confidence} < {MIN_CONFIDENCE_THRESHOLD}, not trading")
             action = "hold"
         else:
             action = recommendation.get("action", "hold")
@@ -673,19 +701,31 @@ class TradeDecisionProcessor:
                 original_quantity = recommendation.get("quantity", 0.0)
                 adjusted_quantity = original_quantity * confidence
                 recommendation["quantity"] = adjusted_quantity
-                print(f"DEBUG [{self.kind}]: Adjusted quantity from {original_quantity} to {adjusted_quantity} based on confidence {confidence}")
+                logger.info(f"DEBUG [{self.kind}]: Adjusted quantity from {original_quantity} to {adjusted_quantity} based on confidence {confidence}")
 
-        print(f"DEBUG [{self.kind}]: Action determined: {action}")
+        logger.info(f"DEBUG [{self.kind}]: Action determined: {action}")
 
         if action == "hold":
-            print("No trade action recommended - holding position")
+            logger.info("No trade action recommended - holding position")
+            return
+
+        elif action == "unwind":
+            # Validate UNWIND action - check if there are actually active trades to unwind
+            active_trades = self.xml_manager.get_active_trades()
+            if not active_trades:
+                logger.warning(f"UNWIND recommended but no active trades exist - overriding to HOLD")
+                recommendation["action"] = "hold"
+                recommendation["reason"] = "UNWIND requested but no active trades to close"
+                return
+            logger.info("UNWIND action recommended - closing all positions")
+            self._execute_unwind_all(current_prices)
             return
 
         elif action == "buy":
             symbol = recommendation.get("symbol")
-            print(f"DEBUG [{self.kind}]: Buy action - symbol: {symbol}")
+            logger.info(f"DEBUG [{self.kind}]: Buy action - symbol: {symbol}")
             if not symbol:
-                print("Buy action specified but no symbol provided")
+                logger.info("Buy action specified but no symbol provided")
                 return
 
             # Check exposure limit before executing buy trade
@@ -693,79 +733,124 @@ class TradeDecisionProcessor:
             quantity = recommendation.get("quantity", 0.0)
             entry_price = recommendation.get("entry_price", current_prices.get(symbol.lower(), 0))
             leverage = recommendation.get("leverage", 1)
-            new_notional = entry_price * quantity * leverage
-            print(f"DEBUG [{self.kind}]: Buy - current_exposure: {current_exposure}, quantity: {quantity}, entry_price: {entry_price}, leverage: {leverage}, new_notional: {new_notional}")
+            new_notional = entry_price * abs(quantity) * leverage  # Use absolute value for exposure calc
+            logger.info(f"DEBUG [{self.kind}]: Buy - current_exposure: {current_exposure}, quantity: {quantity}, entry_price: {entry_price}, leverage: {leverage}, new_notional: {new_notional}")
 
             total_exposure_after = current_exposure + (new_notional / available_cash) if available_cash > 0 else float('inf')
-            print(f"DEBUG [{self.kind}]: Buy - total_exposure_after: {total_exposure_after}, MAX_EXPOSURE_PERCENT: {MAX_EXPOSURE_PERCENT}")
+            logger.info(f"DEBUG [{self.kind}]: Buy - total_exposure_after: {total_exposure_after}, MAX_EXPOSURE_PERCENT: {MAX_EXPOSURE_PERCENT}")
 
             if total_exposure_after > MAX_EXPOSURE_PERCENT:
-                print(f"Trade rejected: would exceed {MAX_EXPOSURE_PERCENT*100}% exposure limit. " +
+                logger.info(f"Trade rejected: would exceed {MAX_EXPOSURE_PERCENT*100}% exposure limit. " +
                       f"Current exposure: {current_exposure*100:.2f}%, " +
                       f"Potential exposure: {total_exposure_after*100:.2f}%")
                 return
 
-            print("DEBUG: Buy - exposure check passed, proceeding to execute trade")
+            logger.info("DEBUG: Buy - exposure check passed, proceeding to execute trade")
             # Create and execute buy trade
-            self._execute_buy_trade(symbol, recommendation, current_prices)
+            self._execute_buy_trade(symbol, recommendation, current_prices, market_data)
 
         elif action == "sell":
             symbol = recommendation.get("symbol")
-            print(f"DEBUG [{self.kind}]: Sell action - symbol: {symbol}")
+            logger.info(f"DEBUG [{self.kind}]: Sell action - symbol: {symbol}")
             if not symbol:
-                print("Sell action specified but no symbol provided")
+                logger.info("Sell action specified but no symbol provided")
                 return
 
             # Check if we have an active position for this symbol
             active_trades = self.xml_manager.get_active_trades()
-            has_position = any(trade.get("symbol") == symbol for trade in active_trades)
-            print(f"DEBUG [{self.kind}]: Sell - has_position: {has_position}, active_trades count: {len(active_trades)}")
+            has_position = any(trade.get("symbol") == symbol or trade.get("coin") == symbol for trade in active_trades)
+            logger.info(f"DEBUG [{self.kind}]: Sell - has_position: {has_position}, active_trades count: {len(active_trades)}")
 
             if has_position:
+                # Close existing position
                 self._execute_sell_trade(symbol, recommendation, current_prices)
             else:
-                print(f"No active position for {symbol} to sell")
+                # Open new short position
+                logger.info(f"DEBUG [{self.kind}]: Sell - opening new short position")
+
+                # Check exposure limit before executing sell trade (short position)
+                current_exposure = self._get_current_exposure_percent(available_cash)
+                quantity = recommendation.get("quantity", 0.0)
+                entry_price = recommendation.get("entry_price", current_prices.get(symbol.lower(), 0))
+                leverage = recommendation.get("leverage", 1)
+                new_notional = entry_price * abs(quantity) * leverage  # Use absolute value for exposure calc
+                logger.info(f"DEBUG [{self.kind}]: Sell - current_exposure: {current_exposure}, quantity: {quantity}, entry_price: {entry_price}, leverage: {leverage}, new_notional: {new_notional}")
+
+                total_exposure_after = current_exposure + (new_notional / available_cash) if available_cash > 0 else float('inf')
+                logger.info(f"DEBUG [{self.kind}]: Sell - total_exposure_after: {total_exposure_after}, MAX_EXPOSURE_PERCENT: {MAX_EXPOSURE_PERCENT}")
+
+                if total_exposure_after > MAX_EXPOSURE_PERCENT:
+                    logger.info(f"Trade rejected: would exceed {MAX_EXPOSURE_PERCENT*100}% exposure limit. " +
+                          f"Current exposure: {current_exposure*100:.2f}%, " +
+                          f"Potential exposure: {total_exposure_after*100:.2f}%")
+                    return
+
+                logger.info("DEBUG: Sell - exposure check passed, proceeding to execute short trade")
+                # Create and execute sell trade (short position)
+                self._execute_buy_trade(symbol, recommendation, current_prices, market_data)
         else:
-            print(f"Unknown action: {action}")
+            logger.info(f"Unknown action: {action}")
     
-    def _execute_buy_trade(self, symbol: str, recommendation: Dict, current_prices: Dict[str, float]):
+    def _execute_buy_trade(self, symbol: str, recommendation: Dict, current_prices: Dict[str, float], market_data: Dict = None):
         """Execute a buy trade based on the recommendation"""
         current_price = current_prices.get(symbol.upper())
         if not current_price:
-            print(f"Could not get current price for {symbol}")
+            logger.info(f"Could not get current price for {symbol}")
             return
-            
+
+        action = recommendation.get("action", "buy")
         quantity = recommendation.get("quantity", 0.0)
         entry_price = recommendation.get("entry_price", current_price)  # Use current price if no entry price specified
         leverage = recommendation.get("leverage", 1)
-        
+
         exit_plan_data = recommendation.get("exit_plan", {})
         profit_target = exit_plan_data.get("profit_target", 0.0)
         stop_loss = exit_plan_data.get("stop_loss", 0.0)
         invalidation_condition = exit_plan_data.get("invalidation_condition", "Manual close")
-        
+
+        # Check if stop_loss is missing or invalid, calculate manually if needed
+        stop_loss_calculated_manually = False
+        if stop_loss <= 0 and market_data:
+            stop_loss, stop_loss_calculated_manually = self._calculate_stop_loss_manually(symbol, entry_price, action, market_data)
+            logger.info(f"Stop loss calculated: {stop_loss} (manual: {stop_loss_calculated_manually})")
+
         confidence = recommendation.get("confidence", 0.0)
-        
+
         # Generate random order IDs (in a real implementation, these would come from the exchange)
         import random
         sl_oid = random.randint(100000000000, 999999999999)
         tp_oid = random.randint(100000000000, 999999999999)
         entry_oid = random.randint(100000000000, 999999999999)
-        
-        # Calculate risk in USD (simplified calculation)
-        risk_usd = abs(entry_price - stop_loss) * quantity * leverage
-        notional_usd = entry_price * quantity * leverage
-        
-        # Calculate unrealized PnL (simplified)
-        unrealized_pnl = (current_price - entry_price) * quantity * leverage
-        
+
+        # Determine position type based on action
+        if action == "sell":
+            position_type = "short"
+            # For short positions, quantity should be positive (represents amount to short)
+            # But we store it as negative in the trade for consistency with calculations
+            stored_quantity = -abs(quantity)
+        else:  # action == "buy"
+            position_type = "long"
+            stored_quantity = abs(quantity)  # Ensure positive for longs
+
+        abs_quantity = abs(stored_quantity)
+
+        # Calculate risk in USD (simplified calculation) - same for longs and shorts
+        risk_usd = abs(entry_price - stop_loss) * abs_quantity * leverage
+        notional_usd = entry_price * abs_quantity * leverage
+
+        # Calculate unrealized PnL (simplified) - different for longs vs shorts
+        if position_type == "long":
+            unrealized_pnl = (current_price - entry_price) * abs_quantity * leverage
+        else:  # short
+            unrealized_pnl = (entry_price - current_price) * abs_quantity * leverage
+
         # Create the new active trade
         trade = ActiveTrade(
             symbol=symbol,
-            quantity=quantity,
+            quantity=stored_quantity,  # Use stored quantity (negative for shorts)
             entry_price=entry_price,
             current_price=current_price,
-            liquidation_price=self._calculate_liquidation_price(entry_price, leverage),  # Simplified calculation
+            liquidation_price=self._calculate_liquidation_price(entry_price, leverage, position_type),
             unrealized_pnl=unrealized_pnl,
             leverage=leverage,
             exit_plan=ExitPlan(
@@ -779,40 +864,59 @@ class TradeDecisionProcessor:
             tp_oid=tp_oid,
             wait_for_fill=False,
             entry_oid=entry_oid,
-            notional_usd=notional_usd
+            notional_usd=notional_usd,
+            position_type=position_type
         )
 
         # Add reasoning from the recommendation
         reasoning_text = recommendation.get("reason", "No reasoning provided")
+        if stop_loss_calculated_manually:
+            reasoning_text += f" (Stop-loss calculated manually using ATR: {stop_loss})"
         trade.add_reasoning(reasoning_text)
-        
+
         # Add the trade to XML
         self.xml_manager.add_active_trade(trade)
-        print(f"Buy trade executed for {symbol}: quantity={quantity}, entry_price={entry_price}")
+        logger.info(f"{position_type.capitalize()} trade executed for {symbol}: quantity={stored_quantity}, entry_price={entry_price}")
 
         # Signal trade opened event
         if self.on_trade_opened:
             self.on_trade_opened(symbol, trade)
+
+        # For short positions, we receive cash when opening (since we're selling)
+        # For long positions, we pay cash when opening (since we're buying)
+        # This is already handled in add_active_trade by reducing cash by notional_usd
     
     def _execute_sell_trade(self, symbol: str, recommendation: Dict, current_prices: Dict[str, float]):
         """Execute a sell trade (close position)"""
         current_price = current_prices.get(symbol.upper())
         if not current_price:
-            print(f"Could not get current price for {symbol}")
+            logger.info(f"Could not get current price for {symbol}")
             return
 
         # Get reasoning from recommendation
         reasoning = recommendation.get("reason", "API recommended sell")
 
+        # Get the active trade to determine position type
+        active_trades = self.xml_manager.get_active_trades()
+        trade_to_close = None
+        for trade in active_trades:
+            if (trade.get("symbol") == symbol) or (trade.get("coin") == symbol):
+                trade_to_close = trade
+                break
+
+        if trade_to_close:
+            position_type = trade_to_close.get("position_type", "long")
+            action_desc = "closing long" if position_type == "long" else "closing short"
+            logger.info(f"Sell trade executed for {symbol}: {action_desc} at price={current_price}")
+
         # Close the active trade in the XML
         self.xml_manager.close_active_trade(symbol, current_price, reasoning)
-        print(f"Sell trade executed for {symbol}: closed at price={current_price}")
 
         # Signal trade closed event
         if self.on_trade_closed:
             self.on_trade_closed(symbol, current_price)
     
-    def _calculate_liquidation_price(self, entry_price: float, leverage: int) -> float:
+    def _calculate_liquidation_price(self, entry_price: float, leverage: int, position_type: str = "long") -> float:
         """Calculate the liquidation price (simplified calculation)"""
         # This is a simplified calculation; in reality, this would depend on the exchange's formula
         # Assuming 100% maintenance margin requirement for simplicity
@@ -820,7 +924,10 @@ class TradeDecisionProcessor:
             return 0.0
 
         # Simplified liquidation price calculation (doesn't account for funding fees, etc.)
-        return entry_price * (leverage - 1) / leverage
+        if position_type == "long":
+            return entry_price * (leverage - 1) / leverage
+        else:  # short position
+            return entry_price * (leverage + 1) / leverage
 
     def _get_current_exposure_percent(self, available_cash: float) -> float:
         """Calculate the current exposure as a percentage of available cash"""
@@ -832,11 +939,66 @@ class TradeDecisionProcessor:
 
         return total_notional / available_cash
 
+    def _calculate_stop_loss_manually(self, symbol: str, entry_price: float, action: str, market_data: Dict) -> tuple[float, bool]:
+        """Calculate stop loss manually using ATR data when LLM fails to provide it"""
+        try:
+            symbol_lower = symbol.lower()
+            if symbol_lower not in market_data:
+                logger.warning(f"No market data found for {symbol} to calculate stop loss")
+                return 0.0, False
+
+            coin_data = market_data[symbol_lower]
+            atr_14 = coin_data.get("atr_14_period", 0)
+
+            if atr_14 <= 0:
+                logger.warning(f"No valid ATR data for {symbol} to calculate stop loss")
+                return 0.0, False
+
+            # Calculate stop loss: 2x ATR distance from entry price
+            atr_distance = atr_14 * 2
+
+            # Ensure stop loss is not more than 5% away from entry price
+            max_distance = entry_price * 0.05
+            atr_distance = min(atr_distance, max_distance)
+
+            if action == "buy":  # Long position
+                stop_loss = entry_price - atr_distance
+            else:  # Short position
+                stop_loss = entry_price + atr_distance
+
+            # Ensure stop loss is positive and reasonable
+            if stop_loss <= 0:
+                stop_loss = entry_price * 0.95  # Fallback to 5% below
+
+            logger.info(f"Calculated stop loss manually for {symbol}: entry={entry_price}, atr_14={atr_14}, stop_loss={stop_loss}")
+            return stop_loss, True
+
+        except Exception as e:
+            logger.error(f"Error calculating stop loss manually for {symbol}: {e}")
+            return 0.0, False
+
+    def _execute_unwind_all(self, current_prices: Dict[str, float]):
+        """Force close all active trades"""
+        active_trades = self.xml_manager.get_active_trades()
+        logger.info(f"UNWIND: Closing {len(active_trades)} active trades")
+
+        for trade in active_trades:
+            symbol = trade.get("symbol") or trade.get("coin")
+            price = current_prices.get(symbol.upper(), trade.get("price", 0))
+            if price > 0:
+                self.xml_manager.close_active_trade(symbol, price, "Manual unwind - UNWIND action")
+                logger.info(f"Force closed {symbol} at {price}")
+                # Signal trade closed event
+                if self.on_trade_closed:
+                    self.on_trade_closed(symbol, price)
+            else:
+                logger.warning(f"Could not get current price for {symbol} during unwind")
+
 
 class TradingAgent:
     """Main trading agent that coordinates all components"""
 
-    def __init__(self, trader: Agent):
+    def __init__(self, trader: Agent, simulation_mode: bool = False):
         self.market_data_manager = MarketDataManager()
         self.trader = trader
         # Determine kind based on trader type
@@ -844,6 +1006,7 @@ class TradingAgent:
         self.xml_manager = TradeXMLManager(kind=self.kind)
         self.trade_processor = TradeDecisionProcessor(self.xml_manager)
         self.trade_processor.kind = self.kind
+        self.simulation_mode = simulation_mode
 
         # Load Binance API credentials from environment
         self.binance_api_key = os.getenv("binance_api_key")
@@ -872,16 +1035,23 @@ class TradingAgent:
                 # Update price
                 self.xml_manager.update_active_trade(symbol, price=current_price)
 
-                # Recalculate PnL
+                # Recalculate PnL - different for longs vs shorts
                 entry_price = trade.get("entry_price")
                 quantity = trade.get("quantity", 0)
                 leverage = trade.get("leverage", 1)
+                position_type = trade.get("position_type", "long")
                 if entry_price:
-                    pnl = (current_price - entry_price) * quantity * leverage
-                    self.xml_manager.update_active_trade(symbol, pnl=pnl)
+                    if position_type == "long":
+                        pnl = (current_price - entry_price) * abs(quantity) * leverage
+                    else:  # short
+                        pnl = (entry_price - current_price) * abs(quantity) * leverage
+                    logger.info(f"DEBUG: Updating {symbol} trade - entry_price: {entry_price}, current_price: {current_price}, quantity: {quantity}, leverage: {leverage}, position_type: {position_type}, calculated_pnl: {pnl}")
+                    self.xml_manager.update_active_trade(symbol, agentPnl=pnl)
+                    # Also update unrealized_pnl for consistency
+                    self.xml_manager.update_active_trade(symbol, unrealized_pnl=pnl)
 
     def _check_and_close_trades(self):
-        """Check if any active trades should be closed due to stop loss or take profit"""
+        """Check if any active trades should be closed due to stop loss, take profit, or time limits"""
         active_trades = self.xml_manager.get_active_trades()
 
         for trade in active_trades:
@@ -889,26 +1059,48 @@ class TradingAgent:
             current_price = trade.get("price") or trade.get("current_price", 0)
             takeprofit = trade.get("takeprofit") or trade.get("profit_target", 0)
             stop_loss = trade.get("stop_loss", 0)
+            timestamp_str = trade.get("timestamp", "")
+            position_type = trade.get("position_type", "long")
 
             should_close = False
             exit_price = current_price
+            reasoning = ""
 
-            if takeprofit > 0 and current_price >= takeprofit:
-                should_close = True
-                print(f"Closing {symbol} trade - take profit reached at {current_price}")
-            elif stop_loss > 0 and current_price <= stop_loss:
-                should_close = True
-                print(f"Closing {symbol} trade - stop loss reached at {current_price}")
+            # Check take profit
+            if takeprofit > 0:
+                if position_type == "long" and current_price >= takeprofit:
+                    should_close = True
+                    reasoning = f"Take profit triggered at {current_price}"
+                    logger.info(f"Closing {symbol} long trade - take profit reached at {current_price}")
+                elif position_type == "short" and current_price <= takeprofit:
+                    should_close = True
+                    reasoning = f"Take profit triggered at {current_price}"
+                    logger.info(f"Closing {symbol} short trade - take profit reached at {current_price}")
+
+            # Check stop loss
+            elif stop_loss > 0:
+                if position_type == "long" and current_price <= stop_loss:
+                    should_close = True
+                    reasoning = f"Stop loss triggered at {current_price}"
+                    logger.info(f"Closing {symbol} long trade - stop loss reached at {current_price}")
+                elif position_type == "short" and current_price >= stop_loss:
+                    should_close = True
+                    reasoning = f"Stop loss triggered at {current_price}"
+                    logger.info(f"Closing {symbol} short trade - stop loss reached at {current_price}")
+
+            # Check time-based exit (max 24 hours)
+            elif timestamp_str:
+                try:
+                    trade_timestamp = datetime.fromisoformat(timestamp_str)
+                    trade_age_hours = (datetime.now() - trade_timestamp).total_seconds() / 3600
+                    if trade_age_hours > 24:
+                        should_close = True
+                        reasoning = f"Max hold time exceeded ({trade_age_hours:.1f} hours)"
+                        logger.info(f"Closing {symbol} trade - max hold time exceeded at {trade_age_hours:.1f} hours")
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Could not parse timestamp for {symbol}: {timestamp_str}")
 
             if should_close:
-                # Determine reasoning based on close condition
-                if takeprofit > 0 and current_price >= takeprofit:
-                    reasoning = f"Take profit triggered at {current_price}"
-                elif stop_loss > 0 and current_price <= stop_loss:
-                    reasoning = f"Stop loss triggered at {current_price}"
-                else:
-                    reasoning = "Trade closed due to exit condition"
-
                 self.xml_manager.close_active_trade(symbol, exit_price, reasoning)
                 # Signal trade closed event for stop loss/take profit closures
                 if self.on_trade_closed:
@@ -916,14 +1108,15 @@ class TradingAgent:
 
     async def process_user_prompt(self, user_prompt: str):
         """Process a user prompt and execute trading decisions"""
-        print(f"Processing user prompt for {self.kind} at {datetime.now()}")
+        logger.info(f"Processing user prompt for {self.kind} at {datetime.now()}")
 
-        # Check signal cooldown to prevent overtrading
+        # Check signal cooldown to prevent overtrading (only if not in simulation mode)
         import time
         current_time = time.time()
-        if current_time - self.last_signal_time < self.signal_cooldown:
-            print(f"Signal cooldown active. Last signal: {self.last_signal_time}, current: {current_time}, cooldown: {self.signal_cooldown}")
-            return  # Skip processing if cooldown is active
+        if not self.simulation_mode:
+            if current_time - self.last_signal_time < self.signal_cooldown:
+                logger.info(f"Signal cooldown active. Last signal: {self.last_signal_time}, current: {current_time}, cooldown: {self.signal_cooldown}")
+                return  # Skip processing if cooldown is active
 
         # Parse the market data from the user prompt
         market_data = self.market_data_manager.parse_market_data(user_prompt)
@@ -954,24 +1147,26 @@ class TradingAgent:
             'trades': active_trades,
             'leverage': 5.0  # Default leverage, can be made configurable
         }
-        return
-        recommendation = await self.trader.get_trade_recommendation(market_data, account_info, active_trades, portfolio)
+
+        
+        logger.info("prepared data for user_prompt")
+        recommendation = await self.trader.get_trade_recommendation(market_data, account_info, active_trades, portfolio, self.kind)
 
         # Save the latest agent response to XML
         self.xml_manager.add_latest_response(recommendation, self.kind)
 
         # Process the trade recommendation (may open new trades if exposure allows)
         confidence = recommendation.get("confidence", 0.0)
-        self.trade_processor.process_trade_recommendation(recommendation, normalized_current_prices, account_info.get("available_cash", 0), confidence)
+        self.trade_processor.process_trade_recommendation(recommendation, normalized_current_prices, account_info.get("available_cash", 0), confidence, market_data)
 
         # Update last signal time only if we actually processed a signal (not on cooldown)
         self.last_signal_time = current_time
 
-        print("Completed processing user prompt")
+        logger.info("Completed processing user prompt")
 
     async def run_trading_session(self, prompts_generator):
         """Run a complete trading session with multiple prompts"""
-        print("Starting trading session...")
+        logger.info("Starting trading session...")
 
         async for prompt in prompts_generator:
             await self.process_user_prompt(prompt)
@@ -979,4 +1174,8 @@ class TradingAgent:
             # Add a small delay between processing prompts
             await asyncio.sleep(0.1)
 
-        print("Trading session completed")
+        logger.info("Trading session completed")
+
+    def force_unwind_all(self, current_prices: Dict[str, float]):
+        """Force close all active trades - public method for manual unwinding"""
+        self._execute_unwind_all(current_prices)

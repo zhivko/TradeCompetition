@@ -4,8 +4,11 @@ import time
 import threading
 import json
 import os
-from flask import Flask, render_template, jsonify, request
+from logging_config import logger
+from flask import Flask, render_template, jsonify, request, make_response
 from flask_socketio import SocketIO, emit
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -14,6 +17,32 @@ socketio = SocketIO(app)
 connected_clients = set()
 
 INITIAL_CAPITAL = 10000.0
+
+class DashboardFileHandler(FileSystemEventHandler):
+    """Handler for file system events in dashboard directories"""
+
+    def on_modified(self, event):
+        """Called when a file is modified"""
+        if not event.is_directory:
+            # Check if the file is in templates or static directories
+            if 'templates' in event.src_path or 'static' in event.src_path:
+                logger.info(f"Dashboard file changed: {event.src_path}")
+                # Notify all connected clients to reload
+                socketio.emit('reload_page', {'message': 'Dashboard files updated'})
+
+    def on_created(self, event):
+        """Called when a file is created"""
+        if not event.is_directory:
+            if 'templates' in event.src_path or 'static' in event.src_path:
+                logger.info(f"Dashboard file created: {event.src_path}")
+                socketio.emit('reload_page', {'message': 'Dashboard files updated'})
+
+    def on_deleted(self, event):
+        """Called when a file is deleted"""
+        if not event.is_directory:
+            if 'templates' in event.src_path or 'static' in event.src_path:
+                logger.info(f"Dashboard file deleted: {event.src_path}")
+                socketio.emit('reload_page', {'message': 'Dashboard files updated'})
 
 class DashboardDataManager:
     """Manages data extraction from trade.xml for the dashboard"""
@@ -49,8 +78,9 @@ class DashboardDataManager:
             return agents_data
 
         except Exception as e:
-            print(f"Error parsing XML: {e}")
+            logger.info(f"Error parsing XML: {e}")
             return []
+
 
     def _parse_agent_element(self, agent_elem):
         """Parse individual agent element"""
@@ -109,6 +139,18 @@ class DashboardDataManager:
                     except json.JSONDecodeError:
                         latest_response = {"raw": response_elem.text}
 
+            # Get timestamp from latest trade instead of response
+            timestamp = None
+            all_trades = active_trades + closed_trades
+            if all_trades:
+                # Find the most recent trade timestamp
+                timestamps = [trade.get('timestamp') for trade in all_trades if trade.get('timestamp')]
+                if timestamps:
+                    timestamp = max(timestamps)
+            # Fallback to response timestamp if no trades
+            elif latest_response and 'timestamp' in latest_response:
+                timestamp = latest_response['timestamp']
+
             return {
                 "kind": agent_kind,
                 "summary": summary,
@@ -117,12 +159,13 @@ class DashboardDataManager:
                 "active_trades": active_trades,
                 "closed_trades": closed_trades,
                 "latest_response": latest_response,
+                "timestamp": timestamp,
                 "active_trades_count": len(active_trades),
                 "closed_trades_count": len(closed_trades)
             }
 
         except Exception as e:
-            print(f"Error parsing agent element: {e}")
+            logger.info(f"Error parsing agent element: {e}")
             return None
 
     def _parse_trade_element(self, trade_elem):
@@ -130,20 +173,33 @@ class DashboardDataManager:
         try:
             trade_data = {}
             for elem in trade_elem:
-                if elem.tag in ["entry_price", "quantity", "stop_loss", "exit_price", "pnl"]:
+                if elem.tag in ["entry_price", "quantity", "stop_loss", "exit_price", "pnl", "unrealized_pnl"]:
                     try:
                         trade_data[elem.tag] = float(elem.text or 0.0)
                     except (ValueError, TypeError):
                         trade_data[elem.tag] = 0.0
                 elif elem.tag in ["timestamp", "symbol", "action", "status"]:
                     trade_data[elem.tag] = elem.text or ""
+                elif elem.tag == "coin":
+                    trade_data["symbol"] = elem.text.upper() if elem.text else ""
+                elif elem.tag == "price":
+                    # For closed trades, price is exit_price
+                    try:
+                        trade_data["exit_price"] = float(elem.text or 0.0)
+                    except (ValueError, TypeError):
+                        trade_data["exit_price"] = 0.0
+                elif elem.tag == "reasoning":
+                    # Extract reasoning text and check for manual stop loss calculation
+                    reasoning_text = elem.text or ""
+                    trade_data["reasoning"] = reasoning_text
+                    trade_data["stop_loss_source"] = "manual" if "Stop-loss calculated manually" in reasoning_text else "llm"
                 else:
                     trade_data[elem.tag] = elem.text or ""
 
             return trade_data
 
         except Exception as e:
-            print(f"Error parsing trade element: {e}")
+            logger.info(f"Error parsing trade element: {e}")
             return None
 
     def get_market_data(self):
@@ -191,7 +247,7 @@ class DashboardDataManager:
             return market_data
 
         except Exception as e:
-            print(f"Error parsing market data: {e}")
+            logger.info(f"Error parsing market data: {e}")
             return {}
 
     def get_leaderboard_data(self):
@@ -223,60 +279,97 @@ data_manager = DashboardDataManager()
 @app.route('/')
 def index():
     """Redirect to live page"""
-    return render_template('live.html')
+    response = make_response(render_template('live.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/live')
 def live():
     """Live dashboard page"""
-    return render_template('live.html')
+    response = make_response(render_template('live.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/leaderboard')
 def leaderboard():
     """Leaderboard page"""
-    return render_template('leaderboard.html')
+    response = make_response(render_template('leaderboard.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/models')
 def models():
     """Models page"""
-    return render_template('models.html')
+    response = make_response(render_template('models.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/api/agents')
 def api_agents():
     """API endpoint for agent data"""
     agents = data_manager.get_agents_data()
-    return jsonify(agents)
+    response = make_response(jsonify(agents))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/api/market')
 def api_market():
     """API endpoint for market data"""
     market = data_manager.get_market_data()
-    return jsonify(market)
+    response = make_response(jsonify(market))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/api/leaderboard')
 def api_leaderboard():
     """API endpoint for leaderboard data"""
     leaderboard = data_manager.get_leaderboard_data()
-    return jsonify(leaderboard)
+    response = make_response(jsonify(leaderboard))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @socketio.on('connect')
-def handle_connect():
-    print('Client connected')
+def handle_connect(auth=None):
+    logger.info('Client connected')
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print('Client disconnected')
+    logger.info('Client disconnected')
 
 @socketio.on('request_update')
 def handle_request_update():
+    # Force fresh read from XML file
+    data_manager.__init__('trade.xml')  # Reinitialize to clear any cached data
     agents = data_manager.get_agents_data()
     market = data_manager.get_market_data()
     leaderboard = data_manager.get_leaderboard_data()
+
+    # Get the latest timestamp from agents
+    latest_timestamp = datetime.now().isoformat()
+    for agent in agents:
+        if agent.get('timestamp'):
+            latest_timestamp = agent['timestamp']
+            break
 
     emit('data_update', {
         'agents': agents,
         'market': market,
         'leaderboard': leaderboard,
-        'timestamp': datetime.now().isoformat()
+        'timestamp': latest_timestamp
     })
 
 def background_update():
@@ -288,18 +381,25 @@ def background_update():
             market = data_manager.get_market_data()
             leaderboard = data_manager.get_leaderboard_data()
 
+            # Get the latest timestamp from agents
+            latest_timestamp = datetime.now().isoformat()
+            for agent in agents:
+                if agent.get('timestamp'):
+                    latest_timestamp = agent['timestamp']
+                    break
+
             update_data = {
                 'agents': agents,
                 'market': market,
                 'leaderboard': leaderboard,
-                'timestamp': datetime.now().isoformat()
+                'timestamp': latest_timestamp
             }
 
             # Send to all connected clients
             socketio.emit('data_update', update_data)
 
         except Exception as e:
-            print(f"Error in background update: {e}")
+            logger.info(f"Error in background update: {e}")
 
         # Update every 5 seconds
         time.sleep(5)
@@ -309,5 +409,16 @@ update_thread = threading.Thread(target=background_update)
 update_thread.daemon = True
 update_thread.start()
 
+# Setup file watcher for dashboard files
+file_handler = DashboardFileHandler()
+observer = Observer()
+observer.schedule(file_handler, path='templates', recursive=True)
+observer.schedule(file_handler, path='static', recursive=True)
+observer.start()
+
 if __name__ == '__main__':
-    socketio.run(app, host='127.0.0.1', port=5001, debug=True)
+    try:
+        socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    finally:
+        observer.stop()
+        observer.join()

@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function setupSocketConnection() {
         try {
-            socket = window.socket || io();
+            socket = window.socket || io(window.location.origin);
 
             socket.on('connect', function() {
                 console.log('Connected to server');
@@ -55,6 +55,14 @@ document.addEventListener('DOMContentLoaded', function() {
             socket.on('data_update', function(data) {
                 console.log('Received data update');
                 handleDataUpdate(data);
+            });
+
+            socket.on('reload_page', function(data) {
+                console.log('Received reload signal:', data.message);
+                showNotification('Dashboard updated, reloading...', 'info');
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1000); // Small delay to show the notification
             });
 
             socket.on('status', function(data) {
@@ -141,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <i class="fas fa-exclamation-triangle"></i>
                             <strong>Connection Error</strong><br>
                             Unable to connect to the trading dashboard server.<br>
-                            Please check if the Flask server is running on port 5000.
+                            Please check if the server is running and accessible.
                         </div>
                     </div>
                 `;

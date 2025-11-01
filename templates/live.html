@@ -1,8 +1,21 @@
 {% extends "base.html" %}
 
-{% block title %}LIVE - Trading Dashboard{% endblock %}
+{% block title %}LIVE - Trading Dashboard (Auto-Reload Enabled){% endblock %}
 
 {% block content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <div>
+                <i class="fas fa-clock"></i> Last Update: <span id="last-update-timestamp">Loading...</span>
+            </div>
+            <div id="connection-status">
+                <i class="fas fa-circle text-warning"></i> Connecting...
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <!-- Agent PNL Overview -->
     <div class="col-lg-4 mb-4">
@@ -142,6 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
     socket.on('data_update', function(data) {
         currentData = data;
         updateDashboard(data);
+        updateTimestamp(data.timestamp);
     });
 
     socket.on('status', function(data) {
@@ -164,6 +178,16 @@ document.addEventListener('DOMContentLoaded', function() {
             statusEl.innerHTML = '<i class="fas fa-circle text-success"></i> Connected';
         } else {
             statusEl.innerHTML = '<i class="fas fa-circle text-danger"></i> Disconnected';
+        }
+    }
+
+    function updateTimestamp(timestamp) {
+        const timestampEl = document.getElementById('last-update-timestamp');
+        if (timestamp) {
+            const date = new Date(timestamp);
+            timestampEl.textContent = date.toLocaleString();
+        } else {
+            timestampEl.textContent = 'Unknown';
         }
     }
 
@@ -296,34 +320,27 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Group by symbol
-        const symbolCounts = {};
+        // Show table with PNL column
+        let html = '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Agent</th><th>Symbol</th><th>Entry Price</th><th>Quantity</th><th>Stop Loss</th><th>Unrealized PNL</th><th>Timestamp</th></tr></thead><tbody>';
+
         allTrades.forEach(trade => {
-            const symbol = trade.symbol || 'Unknown';
-            symbolCounts[symbol] = (symbolCounts[symbol] || 0) + 1;
+            const unrealizedPnl = trade.unrealized_pnl || 0;
+            const pnlClass = unrealizedPnl >= 0 ? 'text-success' : 'text-danger';
+            html += `
+                <tr>
+                    <td>${trade.agent || 'N/A'}</td>
+                    <td>${trade.symbol || 'N/A'}</td>
+                    <td>$${trade.entry_price?.toFixed(2) || '0.00'}</td>
+                    <td>${trade.quantity || '0'}</td>
+                    <td>$${trade.stop_loss?.toFixed(2) || '0.00'}</td>
+                    <td class="${pnlClass}">$${unrealizedPnl.toFixed(2)}</td>
+                    <td>${trade.timestamp || 'N/A'}</td>
+                </tr>
+            `;
         });
 
-        const symbols = Object.keys(symbolCounts);
-        const counts = Object.values(symbolCounts);
-
-        const data = [{
-            type: 'bar',
-            x: symbols,
-            y: counts,
-            marker: {
-                color: '#28a745'
-            }
-        }];
-
-        const layout = {
-            title: 'Active Trades by Symbol',
-            xaxis: { title: 'Symbol' },
-            yaxis: { title: 'Number of Trades' },
-            margin: { t: 40, b: 40, l: 40, r: 40 },
-            height: 300
-        };
-
-        Plotly.newPlot(container, data, layout);
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
     }
 
     function updateClosedTradesChart(agents) {
@@ -347,35 +364,26 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Group by agent and calculate total PNL
-        const agentPnls = {};
+        // Show table with PNL column
+        let html = '<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Agent</th><th>Symbol</th><th>Entry Price</th><th>Exit Price</th><th>Quantity</th><th>PNL</th><th>Timestamp</th></tr></thead><tbody>';
+
         allTrades.forEach(trade => {
-            const agent = trade.agent;
-            const pnl = trade.pnl || 0;
-            agentPnls[agent] = (agentPnls[agent] || 0) + pnl;
+            const pnlClass = (trade.pnl || 0) >= 0 ? 'text-success' : 'text-danger';
+            html += `
+                <tr>
+                    <td>${trade.agent || 'N/A'}</td>
+                    <td>${trade.symbol || 'N/A'}</td>
+                    <td>$${trade.entry_price?.toFixed(2) || '0.00'}</td>
+                    <td>$${trade.exit_price?.toFixed(2) || '0.00'}</td>
+                    <td>${trade.quantity || '0'}</td>
+                    <td class="${pnlClass}">$${trade.pnl?.toFixed(2) || '0.00'}</td>
+                    <td>${trade.timestamp || 'N/A'}</td>
+                </tr>
+            `;
         });
 
-        const agents_list = Object.keys(agentPnls);
-        const pnls = Object.values(agentPnls);
-
-        const data = [{
-            type: 'bar',
-            x: agents_list,
-            y: pnls,
-            marker: {
-                color: pnls.map(pnl => pnl >= 0 ? '#28a745' : '#dc3545')
-            }
-        }];
-
-        const layout = {
-            title: 'Closed Trades PNL by Agent',
-            xaxis: { title: 'Agent' },
-            yaxis: { title: 'Total PNL ($)' },
-            margin: { t: 40, b: 40, l: 40, r: 40 },
-            height: 300
-        };
-
-        Plotly.newPlot(container, data, layout);
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
     }
 
     function updateTradeFeed(agents) {
@@ -385,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         agents.forEach(agent => {
             if (agent.latest_response) {
-                const timestamp = new Date().toLocaleTimeString();
+                const timestamp = agent.timestamp ? new Date(agent.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
                 const action = agent.latest_response.action || 'hold';
                 const symbol = agent.latest_response.symbol || 'N/A';
                 const confidence = agent.latest_response.confidence || 0;

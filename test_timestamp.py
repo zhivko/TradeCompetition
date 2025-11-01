@@ -29,7 +29,7 @@ async def test_trade_creation():
     )
     
     agent.xml_manager.add_active_trade(trade)
-    print('Trade added successfully with timestamp:', trade.timestamp)
+    logger.info('Trade added successfully with timestamp:', trade.timestamp)
     
     # Read the XML to verify
     import xml.etree.ElementTree as ET
@@ -48,11 +48,11 @@ async def test_trade_creation():
         for trade_elem in active_trades.findall('active_trade'):
             timestamp_elem = trade_elem.find('timestamp')
             if timestamp_elem is not None:
-                print('Found timestamp in XML:', timestamp_elem.text)
+                logger.info('Found timestamp in XML:', timestamp_elem.text)
             else:
-                print('No timestamp found in XML')
+                logger.info('No timestamp found in XML')
     else:
-        print('active_trades section not found')
+        logger.info('active_trades section not found')
 
 if __name__ == "__main__":
     asyncio.run(test_trade_creation())

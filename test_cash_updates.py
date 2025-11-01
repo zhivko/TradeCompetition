@@ -6,14 +6,14 @@ from Agent import ActiveTrade, ExitPlan
 
 def test_cash_position_updates():
     """Test cash position updates when opening and closing trades"""
-    print('Testing cash position updates...')
+    logger.info('Testing cash position updates...')
 
     # Initialize XML manager
     xml_manager = TradingXMLManager('trade.xml')
 
     # Get initial account summary
     initial_summary = xml_manager.get_account_summary()
-    print(f'Initial cash: {initial_summary.get("available_cash", 0)}')
+    logger.info(f'Initial cash: {initial_summary.get("available_cash", 0)}')
 
     # Create a test trade
     exit_plan = ExitPlan(profit_target=50000, stop_loss=30000, invalidation_condition='Test')
@@ -36,22 +36,22 @@ def test_cash_position_updates():
     )
 
     # Test opening trade (should reduce cash)
-    print('Opening test trade...')
+    logger.info('Opening test trade...')
     xml_manager.update_cash_position(-test_trade.notional_usd)
     summary_after_open = xml_manager.get_account_summary()
-    print(f'Cash after opening trade: {summary_after_open.get("available_cash", 0)}')
+    logger.info(f'Cash after opening trade: {summary_after_open.get("available_cash", 0)}')
 
     # Test closing trade with profit
     exit_price = 45000  # Profit of 5000
     final_pnl = (exit_price - test_trade.entry_price) * test_trade.quantity * test_trade.leverage
     cash_change = test_trade.notional_usd + final_pnl
-    print(f'Final PnL: {final_pnl}, Cash change: {cash_change}')
+    logger.info(f'Final PnL: {final_pnl}, Cash change: {cash_change}')
 
     xml_manager.update_cash_position(cash_change)
     summary_after_close = xml_manager.get_account_summary()
-    print(f'Cash after closing trade: {summary_after_close.get("available_cash", 0)}')
+    logger.info(f'Cash after closing trade: {summary_after_close.get("available_cash", 0)}')
 
-    print('Cash position update test completed successfully!')
+    logger.info('Cash position update test completed successfully!')
 
 if __name__ == "__main__":
     test_cash_position_updates()

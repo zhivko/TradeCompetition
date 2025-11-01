@@ -37,7 +37,7 @@ trade.add_reasoning('Test reasoning for BTC trade - expecting price breakout')
 
 # Add trade to XML
 xml_manager.add_active_trade(trade)
-print('Trade added to XML successfully')
+logger.info('Trade added to XML successfully')
 
 # Verify the XML contains the reasoning
 tree = ET.parse('trade.xml')
@@ -48,10 +48,10 @@ reasoning = trade_elem.find('reasoning')
 if reasoning is not None:
     timestamp = reasoning.get('timestamp')
     reasoning_text = reasoning.text
-    print('Reasoning found:')
-    print(f'  Timestamp: {timestamp}')
-    print(f'  Reasoning: {reasoning_text}')
+    logger.info('Reasoning found:')
+    logger.info(f'  Timestamp: {timestamp}')
+    logger.info(f'  Reasoning: {reasoning_text}')
 else:
-    print('No reasoning element found')
+    logger.info('No reasoning element found')
 
-print('Test completed successfully!')
+logger.info('Test completed successfully!')

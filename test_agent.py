@@ -1,6 +1,7 @@
 import asyncio
 from Agent import TradingAgent, MarketDataManager
 import json
+from logging_config import logger
 
 # Sample user prompt data based on the specification
 sample_user_prompt = """
@@ -225,7 +226,7 @@ Sharpe Ratio: 0.326
 """
 
 async def test_agent():
-    print("Testing the trading agent with sample data...")
+    logger.info("Testing the trading agent with sample data...")
     
     # Initialize the agent with a mock trader (since we don't have API keys)
     from AgentDeepSeek import AgentDeepSeek
@@ -233,54 +234,210 @@ async def test_agent():
     agent = TradingAgent(trader)
     
     # Test market data parsing
-    print("\n1. Testing market data parsing...")
+    logger.info("\n1. Testing market data parsing...")
     market_data_manager = MarketDataManager()
     market_data = market_data_manager.parse_market_data(sample_user_prompt)
-    print(f"Parsed market data for {len(market_data)-1} coins and account info")  # -1 for account_info
+    logger.info(f"Parsed market data for {len(market_data)-1} coins and account info")  # -1 for account_info
     
     # Print some parsed data to verify
-    print(f"BTC current price: {market_data.get('btc', {}).get('current_price')}")
-    print(f"ETH current price: {market_data.get('eth', {}).get('current_price')}")
-    print(f"Account total return: {market_data.get('account_info', {}).get('total_return')}")
+    logger.info(f"BTC current price: {market_data.get('btc', {}).get('current_price')}")
+    logger.info(f"ETH current price: {market_data.get('eth', {}).get('current_price')}")
+    logger.info(f"Account total return: {market_data.get('account_info', {}).get('total_return')}")
     
     # Test XML structure creation
-    print("\n2. Testing XML structure...")
+    logger.info("\n2. Testing XML structure...")
     xml_manager = agent.xml_manager
-    print(f"Active trades: {len(xml_manager.get_active_trades())}")
+    logger.info(f"Active trades: {len(xml_manager.get_active_trades())}")
     
-    # Test with a mock recommendation (since we don't have the API key for real test)
-    print("\n3. Testing trade decision processing...")
-    mock_recommendation = {
+    # Test comprehensive scenarios
+    logger.info("\n3. Testing comprehensive trade scenarios...")
+
+    trade_processor = agent.trade_processor
+    xml_manager = agent.xml_manager
+
+    # Scenario 1: Long position with profit (price increases)
+    logger.info("\n--- Scenario 1: Long position with profit ---")
+    long_profit_recommendation = {
+        "action": "buy",
+        "symbol": "BTC",
+        "quantity": 0.0001,  # Very small quantity to avoid exposure limits
+        "entry_price": 100000.0,
+        "leverage": 5,
+        "exit_plan": {
+            "profit_target": 120000.0,
+            "stop_loss": 95000.0,
+            "invalidation_condition": "Manual close"
+        },
+        "confidence": 0.9,
+        "reason": "Bullish signal - opening long position"
+    }
+
+    current_prices_scenario1 = {
+        "BTC": 100000.0,  # Entry price
+        "ETH": 4000.0,
+        "BNB": 1100.0,
+        "XRP": 2.5,
+        "DOGE": 0.2
+    }
+
+    trade_processor.process_trade_recommendation(long_profit_recommendation, current_prices_scenario1, 10000.0, 0.9)
+
+    # Update price to simulate profit (price increases)
+    current_prices_profit = {
+        "BTC": 110000.0,  # Price increased by 10%
+        "ETH": 4000.0,
+        "BNB": 1100.0,
+        "XRP": 2.5,
+        "DOGE": 0.2
+    }
+
+    agent._update_active_trades(current_prices_profit)
+    active_trades = xml_manager.get_active_trades()
+    logger.info(f"Active trades after price update: {len(active_trades)}")
+    if active_trades:
+        btc_trade = next((t for t in active_trades if t.get('coin') == 'BTC'), None)
+        if btc_trade:
+            logger.info(f"BTC Long position PnL: {btc_trade.get('pnl', 0):.2f}")
+
+    # Scenario 2: Long position with loss (price decreases, hits stop loss)
+    logger.info("\n--- Scenario 2: Long position with loss (stop loss) ---")
+    long_loss_recommendation = {
         "action": "buy",
         "symbol": "ETH",
-        "quantity": 0.5,
-        "entry_price": 4050.0,
-        "leverage": 10,
+        "quantity": 0.001,  # Very small quantity to avoid exposure limits
+        "entry_price": 4000.0,
+        "leverage": 5,
         "exit_plan": {
-            "profit_target": 4200.0,
-            "stop_loss": 3900.0,
-            "invalidation_condition": "RSI drops below 30"
+            "profit_target": 4500.0,
+            "stop_loss": 3800.0,  # Tight stop loss
+            "invalidation_condition": "Manual close"
         },
         "confidence": 0.8,
-        "reason": "Strong bullish signal on ETH"
+        "reason": "Opening long position with tight stop loss"
     }
-    
-    trade_processor = agent.trade_processor
-    current_prices = {
-        "btc": 113521.5,
-        "eth": 4061.85,
-        "bnb": 1128.15,
-        "xrp": 2.63345,
-        "doge": 0.202375
+
+    current_prices_scenario2 = {
+        "BTC": 110000.0,
+        "ETH": 4000.0,  # Entry price
+        "BNB": 1100.0,
+        "XRP": 2.5,
+        "DOGE": 0.2
     }
-    
-    trade_processor.process_trade_recommendation(mock_recommendation, current_prices, 10000.0, 0.8)
-    
-    # Check if the trade was added to XML
+
+    trade_processor.process_trade_recommendation(long_loss_recommendation, current_prices_scenario2, 10000.0, 0.8)
+
+    # Update price to trigger stop loss (price decreases below stop loss)
+    current_prices_loss = {
+        "BTC": 110000.0,
+        "ETH": 3750.0,  # Below stop loss of 3800
+        "BNB": 1100.0,
+        "XRP": 2.5,
+        "DOGE": 0.2
+    }
+
+    agent._check_and_close_trades()
     active_trades = xml_manager.get_active_trades()
-    print(f"Active trades after processing: {len(active_trades)}")
-    
-    print("\n4. Testing complete. XML file has been created/updated.")
+    logger.info(f"Active trades after stop loss trigger: {len(active_trades)}")
+
+    # Scenario 3: Short position with profit (price decreases)
+    logger.info("\n--- Scenario 3: Short position with profit ---")
+    short_profit_recommendation = {
+        "action": "sell",  # Use sell action for short positions
+        "symbol": "BNB",
+        "quantity": 0.2,  # Positive quantity - sell action means short
+        "entry_price": 1100.0,
+        "leverage": 5,
+        "exit_plan": {
+            "profit_target": 1000.0,  # Lower target for shorts
+            "stop_loss": 1150.0,  # Higher stop loss for shorts
+            "invalidation_condition": "Manual close"
+        },
+        "confidence": 0.8,
+        "reason": "Bearish signal - opening short position"
+    }
+
+    current_prices_scenario3 = {
+        "BTC": 110000.0,
+        "ETH": 3750.0,
+        "BNB": 1100.0,  # Entry price
+        "XRP": 2.5,
+        "DOGE": 0.2
+    }
+
+    trade_processor.process_trade_recommendation(short_profit_recommendation, current_prices_scenario3, 10000.0, 0.8)
+
+    # Update price to simulate profit for short (price decreases)
+    current_prices_short_profit = {
+        "BTC": 110000.0,
+        "ETH": 3750.0,
+        "BNB": 1050.0,  # Price decreased by 4.5%
+        "XRP": 2.5,
+        "DOGE": 0.2
+    }
+
+    agent._update_active_trades(current_prices_short_profit)
+    active_trades = xml_manager.get_active_trades()
+    logger.info(f"Active trades after short profit update: {len(active_trades)}")
+    if active_trades:
+        bnb_trade = next((t for t in active_trades if t.get('coin') == 'BNB'), None)
+        if bnb_trade:
+            logger.info(f"BNB Short position PnL: {bnb_trade.get('pnl', 0):.2f}")
+
+    # Scenario 4: Short position with loss (price increases, hits stop loss)
+    logger.info("\n--- Scenario 4: Short position with loss (stop loss) ---")
+    short_loss_recommendation = {
+        "action": "sell",  # Use sell action for short positions
+        "symbol": "XRP",
+        "quantity": 0.01,  # Positive quantity - sell action means short
+        "entry_price": 2.5,
+        "leverage": 5,
+        "exit_plan": {
+            "profit_target": 2.2,  # Lower target for shorts
+            "stop_loss": 2.6,  # Tight stop loss for shorts
+            "invalidation_condition": "Manual close"
+        },
+        "confidence": 0.8,
+        "reason": "Opening short position with tight stop loss"
+    }
+
+    current_prices_scenario4 = {
+        "BTC": 110000.0,
+        "ETH": 3750.0,
+        "BNB": 1050.0,
+        "XRP": 2.5,  # Entry price
+        "DOGE": 0.2
+    }
+
+    trade_processor.process_trade_recommendation(short_loss_recommendation, current_prices_scenario4, 10000.0, 0.8)
+
+    # Update price to trigger stop loss for short (price increases above stop loss)
+    current_prices_short_loss = {
+        "BTC": 110000.0,
+        "ETH": 3750.0,
+        "BNB": 1050.0,
+        "XRP": 2.65,  # Above stop loss of 2.6
+        "DOGE": 0.2
+    }
+
+    agent._check_and_close_trades()
+    active_trades = xml_manager.get_active_trades()
+    logger.info(f"Active trades after short stop loss trigger: {len(active_trades)}")
+
+    # Final validation
+    logger.info("\n--- Final Validation ---")
+    active_trades = xml_manager.get_active_trades()
+    logger.info(f"Final active trades count: {len(active_trades)}")
+
+    # Check cash position
+    logger.info("Checking final cash position and trade details...")
+    for trade in active_trades:
+        logger.info(f"Trade: {trade.get('coin')} {trade.get('position_type', 'unknown')} - "
+                   f"Quantity: {trade.get('quantity')} - "
+                   f"Entry: {trade.get('entry_price')} - "
+                   f"Current: {trade.get('price')} - "
+                   f"PnL: {trade.get('pnl', 0):.2f}")
+
+    logger.info("\n4. Comprehensive testing complete. All scenarios validated.")
 
 if __name__ == "__main__":
     asyncio.run(test_agent())

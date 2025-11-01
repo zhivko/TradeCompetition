@@ -5,15 +5,15 @@ import time
 async def test_dashboard():
     """Test the dashboard with Puppeteer to troubleshoot the 'Connecting to server...' issue"""
 
-    print("Launching browser...")
+    logger.info("Launching browser...")
     browser = await launch(headless=False, args=['--no-sandbox', '--disable-setuid-sandbox'])
     page = await browser.newPage()
 
     # Set up console logging
-    page.on('console', lambda msg: print(f'PAGE LOG: {msg.text}'))
+    page.on('console', lambda msg: logger.info(f'PAGE LOG: {msg.text}'))
 
     # Navigate to the leaderboard page
-    print("Navigating to http://127.0.0.1:5000/leaderboard...")
+    logger.info("Navigating to http://127.0.0.1:5000/leaderboard...")
     await page.goto('http://127.0.0.1:5000/leaderboard', {'waitUntil': 'networkidle0'})
 
     # Wait for page to load
@@ -27,8 +27,8 @@ async def test_dashboard():
         }
     ''')
 
-    print("Leaderboard table content:")
-    print(leaderboard_content[:500] + "..." if len(leaderboard_content) > 500 else leaderboard_content)
+    logger.info("Leaderboard table content:")
+    logger.info(leaderboard_content[:500] + "..." if len(leaderboard_content) > 500 else leaderboard_content)
 
     # Check connection status
     connection_status = await page.evaluate('''
@@ -38,7 +38,7 @@ async def test_dashboard():
         }
     ''')
 
-    print(f"Connection status: {connection_status}")
+    logger.info(f"Connection status: {connection_status}")
 
     # Check if Socket.IO is loaded
     socket_loaded = await page.evaluate('''
@@ -47,10 +47,10 @@ async def test_dashboard():
         }
     ''')
 
-    print(f"Socket.IO loaded: {socket_loaded}")
+    logger.info(f"Socket.IO loaded: {socket_loaded}")
 
     # Wait a bit to see if data loads
-    print("Waiting 10 seconds for data to load...")
+    logger.info("Waiting 10 seconds for data to load...")
     await asyncio.sleep(10)
 
     # Check again after waiting
@@ -61,8 +61,8 @@ async def test_dashboard():
         }
     ''')
 
-    print("Leaderboard table content after waiting:")
-    print(leaderboard_content_after[:500] + "..." if len(leaderboard_content_after) > 500 else leaderboard_content_after)
+    logger.info("Leaderboard table content after waiting:")
+    logger.info(leaderboard_content_after[:500] + "..." if len(leaderboard_content_after) > 500 else leaderboard_content_after)
 
     # Check for any error messages in the page
     errors = await page.evaluate('''
@@ -78,7 +78,7 @@ async def test_dashboard():
         }
     ''')
 
-    print(f"Error messages found: {errors}")
+    logger.info(f"Error messages found: {errors}")
 
     # Check browser console for errors
     console_messages = []
@@ -89,7 +89,7 @@ async def test_dashboard():
 
     await browser.close()
 
-    print("Test completed.")
+    logger.info("Test completed.")
 
 if __name__ == '__main__':
     asyncio.run(test_dashboard())

@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<trading>
+  <state_of_market />
+  <agents>
+    <agent>
+      <active_trades />
+      <closed_trades />
+      <summary>
+        <total_return>0.0</total_return>
+        <available_cash>10000.0</available_cash>
+        <current_account_value>10000.0</current_account_value>
+        <sharpe_ratio>0.0</sharpe_ratio>
+      </summary>
+    </agent>
+  </agents>
+</trading>
